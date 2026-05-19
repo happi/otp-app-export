@@ -178,6 +178,59 @@ DISPATCH_EXPORT(Export) {
 
     ep = (Export*)($Export);
 
+    /* Check app visibility (EEP <TBD>) */
+    if (erts_check_app_visibility(c_p, ep, I)) {
+        /* Visibility check failed - exception already set */
+        goto find_func_info;
+    }
+
+    DTRACE_GLOBAL_CALL_FROM_EXPORT(c_p, ep);
+
+    SET_I(ep->dispatch.addresses[erts_active_code_ix()]);
+    CHECK_ARGS(I);
+    dis_next = *I;
+
+    if (ERTS_UNLIKELY(FCALLS <= 0)) {
+        if (ERTS_PROC_GET_SAVED_CALLS_BUF(c_p) && FCALLS > neg_o_reds) {
+            save_calls(c_p, ep);
+        } else {
+            goto context_switch;
+        }
+    }
+
+    FCALLS--;
+    Goto(dis_next);
+}
+
+DISPATCH_EXPORT_TAILCALL(Export) {
+    BeamInstr dis_next;
+    Export *ep;
+
+    ep = (Export*)($Export);
+
+    /* Save I for tail call case where CP doesn't point to actual caller (EEP <TBD>) */
+    c_p->caller_saved_i = I;
+
+    /* If we're about to call error_handler, preserve caller_app from saved_i
+     * before error_handler overwrites it (EEP <TBD>) */
+    if (c_p->caller_app == THE_NON_VALUE && ep->info.mfa.module == am_error_handler) {
+        /* About to jump to error_handler - preserve caller app from saved_i */
+        const ErtsCodeMFA *caller_mfa = erts_find_function_from_pc(c_p->caller_saved_i);
+        if (caller_mfa) {
+            ErtsCodeIndex code_ix = erts_active_code_ix();
+            Module *caller_mod = erts_get_module(caller_mfa->module, code_ix);
+            if (caller_mod && caller_mod->app_atom != am_undefined) {
+                c_p->caller_app = caller_mod->app_atom;
+            }
+        }
+    }
+
+    /* Check app visibility (EEP <TBD>) */
+    if (erts_check_app_visibility(c_p, ep, I)) {
+        /* Visibility check failed - exception already set */
+        goto find_func_info;
+    }
+
     DTRACE_GLOBAL_CALL_FROM_EXPORT(c_p, ep);
 
     SET_I(ep->dispatch.addresses[erts_active_code_ix()]);

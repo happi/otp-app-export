@@ -358,7 +358,7 @@ void BeamModuleAssembler::emit_i_apply_fun_last(const ArgWord &Deallocate) {
 void BeamModuleAssembler::emit_i_apply_fun_only() {
     safe_fragment_call(ga->get_apply_fun_shared());
 
-    x86::Gp target = emit_call_fun();
+    x86::Gp target = emit_call_fun(false, false, true);
     emit_leave_frame();
     a.jmp(target);
 }
@@ -367,7 +367,8 @@ void BeamModuleAssembler::emit_i_apply_fun_only() {
  *   ARG3 = lower 16 bits of expected header, containing FUN_SUBTAG and arity
  *   ARG4 = fun thing */
 x86::Gp BeamModuleAssembler::emit_call_fun(bool skip_box_test,
-                                           bool skip_header_test) {
+                                           bool skip_header_test,
+                                           bool save_caller_pc) {
     const bool can_fail = !(skip_box_test && skip_header_test);
     Label next = a.new_label();
 
@@ -391,7 +392,7 @@ x86::Gp BeamModuleAssembler::emit_call_fun(bool skip_box_test,
         /* As emit_is_boxed(), but explicitly sets ZF so we can rely on that
          * for error checking in `next`. */
         a.test(ARG4d, imm(_TAG_PRIMARY_MASK - TAG_PRIMARY_BOXED));
-        a.short_().jne(next);
+        a.jne(next);
     }
 
     if (skip_header_test) {
@@ -401,10 +402,14 @@ x86::Gp BeamModuleAssembler::emit_call_fun(bool skip_box_test,
         ERTS_CT_ASSERT(FUN_HEADER_ARITY_OFFS == 8);
         ERTS_CT_ASSERT(FUN_HEADER_ENV_SIZE_OFFS == 16);
         a.cmp(emit_boxed_val(fun_thing, 0, sizeof(Uint16)), ARG3.r16());
-        a.short_().jne(next);
+        a.jne(next);
     }
 
     a.mov(RET, emit_boxed_val(fun_thing, offsetof(ErlFunThing, entry)));
+    emit_check_external_fun_app_visibility(RET,
+                                           fun_thing,
+                                           next,
+                                           save_caller_pc);
     a.mov(ARG1, emit_setup_dispatchable_call(RET));
 
     a.bind(next);
@@ -450,7 +455,8 @@ void BeamModuleAssembler::emit_i_call_fun2_last(const ArgVal &Tag,
                exact_type<BeamTypeId::Fun>(Func));
         auto target =
                 emit_call_fun(always_one_of<BeamTypeId::AlwaysBoxed>(Func),
-                              Tag.as<ArgImmed>().get() == am_safe);
+                              Tag.as<ArgImmed>().get() == am_safe,
+                              true);
 
         emit_deallocate(Deallocate);
         emit_leave_frame();

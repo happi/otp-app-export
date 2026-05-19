@@ -314,6 +314,7 @@ find_range(ErtsCodePtr pc)
 
     CHECK(&r[active]);
     while (low < high) {
+	const BeamCodeHeader *hdr = (BeamCodeHeader*) mid->start;
 	if (pc < mid->start) {
 	    high = mid;
 	} else if (pc >= RANGE_END(mid)) {

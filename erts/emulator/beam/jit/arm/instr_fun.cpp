@@ -392,6 +392,23 @@ a64::Gp BeamModuleAssembler::emit_call_fun(bool skip_box_test,
         a.b_ne(next);
     }
 
+    /* Gate external funs (fun M:F/A) through the app-visibility check.
+     * Local funs / closures point at compiler-generated functions in the
+     * same module, so they don't route through Export and are skipped. */
+    {
+        Label local_fun = a.new_label();
+
+        emit_untag_ptr(TMP2, ARG4);
+        a.ldr(TMP2, a64::Mem(TMP2, offsetof(ErlFunThing, thing_word)));
+        a.lsr(TMP2, TMP2, imm(FUN_HEADER_KIND_OFFS));
+        a.cbz(TMP2, local_fun);
+
+        /* External fun: ARG1 holds the Export*. */
+        emit_app_visibility_gate(true);
+
+        a.bind(local_fun);
+    }
+
     a.ldr(TMP1, emit_setup_dispatchable_call(ARG1));
 
     a.bind(next);
