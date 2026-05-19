@@ -239,6 +239,120 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
     return retval;
 }
 
+/* Parse -app() and -app_export() attributes (EEP <TBD>) */
+static void parse_app_attributes(LoaderState* stp, Module* mod_tab_p)
+{
+    ErtsCodeIndex code_ix = erts_staging_code_ix();
+    Eterm app_atom = am_undefined;
+    Eterm app_export_list = NIL;
+    const byte* attr_data;
+    Sint attr_size;
+    Eterm attributes;
+    Eterm *tp;
+    Eterm list;
+    ErtsHeapFactory factory;
+    Eterm *hp_start;
+    Sint decoded_size;
+
+    /* Get the attributes data */
+    if (stp->beam.attributes.size == 0) {
+        return;  /* No attributes */
+    }
+
+    attr_data = stp->beam.attributes.data;
+    attr_size = stp->beam.attributes.size;
+
+    /* Calculate heap size needed */
+    decoded_size = erts_decode_ext_size(attr_data, attr_size);
+    if (decoded_size < 0) {
+        return;  /* Invalid attributes, skip silently for POC */
+    }
+
+    /* Allocate temporary heap */
+    hp_start = erts_alloc(ERTS_ALC_T_TMP, decoded_size * sizeof(Eterm));
+
+    /* Initialize factory with temporary heap */
+    erts_factory_tmp_init(&factory, hp_start, decoded_size, ERTS_ALC_T_TMP);
+
+    /* Decode the external term format */
+    attributes = erts_decode_ext(&factory, &attr_data, 0);
+    erts_factory_close(&factory);
+
+    if (is_non_value(attributes) || !is_list(attributes)) {
+        erts_free(ERTS_ALC_T_TMP, hp_start);
+        return;  /* Invalid attributes, skip silently for POC */
+    }
+
+    /* Iterate through attribute list looking for {app, App} and {app_export, List} */
+    list = attributes;
+    while (is_list(list)) {
+        Eterm *cons = list_val(list);
+        Eterm item = CAR(cons);
+
+        if (is_tuple(item)) {
+            tp = tuple_val(item);
+            if (arityval(tp[0]) == 2 && is_atom(tp[1])) {
+                Atom *atom_ptr = atom_tab(atom_val(tp[1]));
+                const byte *atom_name = erts_atom_get_name(atom_ptr);
+
+                /* Check if it's 'app' attribute */
+                if (atom_ptr->len == 3 &&
+                    sys_memcmp((char*)atom_name, "app", 3) == 0 &&
+                    is_list(tp[2])) {
+                    Eterm *app_list = list_val(tp[2]);
+                    if (is_atom(CAR(app_list))) {
+                        app_atom = CAR(app_list);
+                    }
+                }
+                /* Check if it's 'app_export' attribute */
+                else if (atom_ptr->len == 10 &&
+                         sys_memcmp((char*)atom_name, "app_export", 10) == 0 &&
+                         is_list(tp[2])) {
+                    app_export_list = tp[2];
+                }
+            }
+        }
+        list = CDR(cons);
+    }
+
+    /* Store app_atom in Module */
+    mod_tab_p->app_atom = app_atom;
+
+    /* If we have both app and app_export, mark the exports as restricted */
+    if (app_atom != am_undefined && is_list(app_export_list)) {
+        Eterm exp_list = app_export_list;
+
+        while (is_list(exp_list)) {
+            Eterm *cons = list_val(exp_list);
+            Eterm fa_tuple = CAR(cons);
+
+            if (is_tuple(fa_tuple)) {
+                Eterm *fa_tp = tuple_val(fa_tuple);
+                if (arityval(fa_tp[0]) == 2 && is_atom(fa_tp[1]) && is_small(fa_tp[2])) {
+                    Eterm func_atom = fa_tp[1];
+                    unsigned arity_val = unsigned_val(fa_tp[2]);
+                    Export *ep;
+
+                    /* Get or create the export entry - erts_export_put returns existing if present
+                     * Note: The compiler should validate that functions in -app_export() are also
+                     * in -export(). We trust the compiler here. */
+                    ep = erts_export_put(stp->module, func_atom, arity_val);
+
+                    if (ep != NULL) {
+                        /* Mark it as restricted */
+                        ep->app_restricted = 1;
+                        ep->app_atom = app_atom;
+                    }
+                }
+            }
+            exp_list = CDR(cons);
+        }
+    }
+
+    /* Free temporary heap */
+    erts_free(ERTS_ALC_T_TMP, hp_start);
+}
+
 Eterm
 erts_finish_loading(Binary* magic, Process* c_p,
                     ErtsProcLocks c_p_locks, Eterm* modp)
@@ -313,6 +427,9 @@ erts_finish_loading(Binary* magic, Process* c_p,
     }
 
     beam_load_finalize_code(stp, inst_p);
+
+    /* Parse and apply app visibility attributes (EEP <TBD>) */
+    parse_app_attributes(stp, mod_tab_p);
 
 #if defined(LOAD_MEMORY_HARD_DEBUG) && defined(DEBUG)
     erts_fprintf(stderr,"Loaded %T\n",*modp);

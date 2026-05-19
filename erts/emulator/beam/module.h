@@ -50,6 +50,9 @@ typedef struct erl_module {
     struct erl_module_instance curr;
     struct erl_module_instance old; /* active protected by "old_code" rwlock */
     struct erl_module_instance* on_load;
+
+    /* Application-level visibility control (EEP <TBD>) */
+    Eterm app_atom;         /* Application namespace atom, or am_undefined */
 } Module; 
 
 void erts_module_instance_init(struct erl_module_instance* modi);

@@ -179,6 +179,7 @@ value_option(Flag, Default, On, OnVal, Off, OffVal, Opts) ->
                module='',                       %Module
                behaviour=[],                    %Behaviour
                exports=gb_sets:empty()	:: gb_sets:set(fa()),%Exports
+               app_exports=gb_sets:empty()	:: gb_sets:set(fa()),%App-restricted exports
                imports=[] :: orddict:orddict(fa(), module()),%Imports
                remote_self_calls=#{} :: #{ fa() => gb_sets:set() },
                compile=[],                      %Compile flags
@@ -358,6 +359,10 @@ format_error_1(export_all) ->
     ~"export_all flag enabled - all functions will be exported";
 format_error_1({duplicated_export, {F,A}}) ->
     {~"function ~tw/~w already exported", [F,A]};
+format_error_1({duplicated_app_export, {F,A}}) ->
+    {~"function ~tw/~w already app_exported", [F,A]};
+format_error_1({app_export_conflicts_with_export, {F,A}}) ->
+    {~"function ~tw/~w cannot be both exported and app_exported", [F,A]};
 format_error_1({unused_import,{{F,A},M}}) ->
     {~"import ~w:~tw/~w is unused", [M,F,A]};
 format_error_1({undefined_function,{F,A}}) ->
@@ -1191,6 +1196,8 @@ attribute_state({attribute,A,module,_M}, St) ->
     add_error(A, redefine_module, St);
 attribute_state({attribute,A,export,Es}, St) ->
     export(A, Es, St);
+attribute_state({attribute,A,app_export,Es}, St) ->
+    app_export(A, Es, St);
 attribute_state({attribute,A,export_type,Es}, St) ->
     export_type(A, Es, St);
 attribute_state({attribute,A,import,Is}, St) ->
@@ -1814,8 +1821,8 @@ check_unused_functions(Forms, St0) ->
             func_location_warning(unused_function, Bad, St1)
     end.
 
-initially_reached(#lint{exports=Exp,on_load=OnLoad}) ->
-    OnLoad ++ gb_sets:to_list(Exp).
+initially_reached(#lint{exports=Exp,app_exports=AppExp,on_load=OnLoad}) ->
+    OnLoad ++ gb_sets:to_list(Exp) ++ gb_sets:to_list(AppExp).
 
 %% reached_functions(RootSet, CallRef) -> [ReachedFunc].
 %% reached_functions(RootSet, CallRef, [ReachedFunc]) -> [ReachedFunc].
@@ -2114,6 +2121,32 @@ export(Anno, Es, #lint{exports = Es0, called = Called} = St0) ->
               end,
               {Es0,Called,St0}, Es),
     St1#lint{exports = Es1, called = C1}.
+
+-spec app_export(anno(), [fa()], lint_state()) -> lint_state().
+%%  Mark functions as app-restricted exports (EEP <TBD>), also as called.
+
+app_export(Anno, Es, #lint{app_exports = AEs0, exports = Exps, called = Called} = St0) ->
+    {AEs1,C1,St1} =
+        foldl(fun (NA, {AE,C,St2}) ->
+                      St3 = case gb_sets:is_element(NA, AE) of
+                                true ->
+                                    Warn = {duplicated_app_export,NA},
+                                    add_warning(Anno, Warn, St2);
+                                false ->
+                                    St2
+                            end,
+                      %% Check if function is already in regular exports (mutual exclusivity)
+                      St = case gb_sets:is_element(NA, Exps) of
+                               true ->
+                                   Err = {app_export_conflicts_with_export,NA},
+                                   add_error(Anno, Err, St3);
+                               false ->
+                                   St3
+                           end,
+                      {gb_sets:add_element(NA, AE), [{NA,Anno}|C], St}
+              end,
+              {AEs0,Called,St0}, Es),
+    St1#lint{app_exports = AEs1, called = C1}.
 
 -spec export_type(anno(), [ta()], lint_state()) -> lint_state().
 %%  Mark types as exported; also mark them as used from the export line.

@@ -547,6 +547,44 @@ void process_main(ErtsSchedulerData *esdp)
 
         HEAVY_SWAPOUT;
         mfa = erts_code_to_codemfa(I);
+
+        /* Capture caller module for app visibility check (EEP <TBD>).
+         * Try multiple sources in order:
+         * 1. Continuation pointer from stack (works for non-tail calls)
+         * 2. Saved instruction pointer (works for tail calls to closures)
+         * Only set if not already set (preserves through error_handler/apply chains). */
+        if (c_p->caller_app == THE_NON_VALUE) {
+            ErtsCodePtr cp = (ErtsCodePtr) E[0];  /* Continuation pointer from stack */
+            const ErtsCodeMFA *caller_mfa = erts_find_function_from_pc(cp);
+
+            if (caller_mfa) {
+                ErtsCodeIndex code_ix = erts_active_code_ix();
+                Module *caller_mod = erts_get_module(caller_mfa->module, code_ix);
+
+                if (caller_mod && caller_mod->app_atom != am_undefined) {
+                    /* User code with an app - save the app atom directly */
+                    c_p->caller_app = caller_mod->app_atom;
+                }
+            }
+
+            /* If CP didn't work (system code or NULL), try saved instruction pointer (tail call case) */
+            if (c_p->caller_app == THE_NON_VALUE && c_p->caller_saved_i != NULL) {
+                caller_mfa = erts_find_function_from_pc(c_p->caller_saved_i);
+
+                if (caller_mfa) {
+                    ErtsCodeIndex code_ix = erts_active_code_ix();
+                    Module *caller_mod = erts_get_module(caller_mfa->module, code_ix);
+
+                    if (caller_mod && caller_mod->app_atom != am_undefined) {
+                        /* User code with an app - save the app atom directly */
+                        c_p->caller_app = caller_mod->app_atom;
+                    }
+                }
+                /* Clear saved_i after use */
+                c_p->caller_saved_i = NULL;
+            }
+        }
+
         error_handler = call_error_handler(c_p,
                                            mfa,
                                            reg,

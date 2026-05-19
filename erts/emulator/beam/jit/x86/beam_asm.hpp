@@ -1328,7 +1328,8 @@ protected:
     x86::Mem emit_fixed_apply(const ArgWord &arity, bool includeI);
 
     x86::Gp emit_call_fun(bool skip_box_test = false,
-                          bool skip_header_test = false);
+                          bool skip_header_test = false,
+                          bool save_caller_pc = false);
 
     void emit_is_boxed(Label Fail, x86::Gp Src, Distance dist = dLong) {
         preserve_cache([&]() {
@@ -1484,6 +1485,17 @@ protected:
     void emit_raise_exception(const ErtsCodeMFA *exp);
     void emit_raise_exception(Label I, const ErtsCodeMFA *exp);
     void emit_raise_exception(x86::Gp I, const ErtsCodeMFA *exp);
+    void emit_save_app_visibility_caller_pc(Label caller_pc);
+    void emit_check_app_visibility(const x86::Gp &exp,
+                                   Label caller_pc,
+                                   bool reset_caller_app);
+    void emit_check_app_visibility(const x86::Gp &exp,
+                                   const x86::Gp &caller_pc,
+                                   bool reset_caller_app);
+    void emit_check_external_fun_app_visibility(const x86::Gp &exp,
+                                                const x86::Gp &fun_thing,
+                                                Label caller_pc,
+                                                bool save_caller_pc);
 
     void emit_validate(const ArgWord &arity);
     void emit_bs_skip_bits(const ArgLabel &Fail, const ArgRegister &Ctx);

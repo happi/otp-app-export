@@ -5841,13 +5841,59 @@ exported_from_module(Process* p, ErtsCodeIndex code_ix, Eterm mod)
     num_exps = export_list_size(code_ix);
     for (i = 0; i < num_exps; i++) {
         Export* ep = export_list(i,code_ix);
-        
+
         if (ep->info.mfa.module == mod) {
             Eterm tuple;
 
             if (erts_is_export_trampoline_active(ep, code_ix) &&
                 BeamIsOpCode(ep->trampoline.common.op, op_call_error_handler)) {
-                /* There is a call to the function, but it does not exist. */ 
+                /* There is a call to the function, but it does not exist. */
+                continue;
+            }
+
+            /* Skip app-restricted exports - they only appear in app_exports (EEP <TBD>) */
+            if (ep->app_restricted) {
+                continue;
+            }
+
+            if (hp == hend) {
+                int need = 10 * 5;
+                hp = HAlloc(p, need);
+                hend = hp + need;
+            }
+
+            tuple = TUPLE2(hp, ep->info.mfa.function,
+                           make_small(ep->info.mfa.arity));
+            hp += 3;
+
+            result = CONS(hp, tuple, result);
+            hp += 2;
+        }
+    }
+
+    HRelease(p, hend,hp);
+    return result;
+}
+
+/* Returns a list of all app-restricted exports for the module (EEP <TBD>). */
+static Eterm
+app_exported_from_module(Process* p, ErtsCodeIndex code_ix, Eterm mod)
+{
+    int i, num_exps;
+    Eterm* hp = NULL;
+    Eterm* hend = NULL;
+    Eterm result = NIL;
+
+    num_exps = export_list_size(code_ix);
+    for (i = 0; i < num_exps; i++) {
+        Export* ep = export_list(i,code_ix);
+
+        if (ep->info.mfa.module == mod && ep->app_restricted) {
+            Eterm tuple;
+
+            if (erts_is_export_trampoline_active(ep, code_ix) &&
+                BeamIsOpCode(ep->trampoline.common.op, op_call_error_handler)) {
+                /* There is a call to the function, but it does not exist. */
                 continue;
             }
 
@@ -5935,6 +5981,8 @@ get_module_info(Process* p, ErtsCodeIndex code_ix,
         return md5_of_module(p, code_hdr);
     } else if (what == am_exports) {
         return exported_from_module(p, code_ix, module);
+    } else if (what == am_app_exports) {
+        return app_exported_from_module(p, code_ix, module);
     } else if (what == am_functions) {
         return functions_in_module(p, code_hdr);
     } else if (what == am_nifs) {
@@ -5986,6 +6034,7 @@ module_info_0(Process* p, Eterm module)
     BUILD_INFO(am_md5);
     BUILD_INFO(am_compile);
     BUILD_INFO(am_attributes);
+    BUILD_INFO(am_app_exports);
     BUILD_INFO(am_exports);
     BUILD_INFO(am_module);
 #undef BUILD_INFO

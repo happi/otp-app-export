@@ -1130,6 +1130,17 @@ struct process {
                                  * arity an untagged integer).
                                  */
 
+    Eterm caller_app;           /* App atom of caller for app visibility check.
+                                 * Set when going through error_handler for
+                                 * undefined function (EEP <TBD>).
+                                 * THE_NON_VALUE if not set.
+                                 */
+    ErtsCodePtr caller_saved_i; /* Saved instruction pointer before potential call to
+                                 * undefined function. Used for tail calls where CP
+                                 * doesn't point to the actual caller (EEP <TBD>).
+                                 * NULL if not set.
+                                 */
+
     /*
      * Information mainly for post-mortem use (erl crash dump).
      */

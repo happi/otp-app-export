@@ -98,6 +98,10 @@ static void export_init(Export *dst, const Export *template)
     dst->dispatch.addresses[ERTS_SAVE_CALLS_CODE_IX] =
         beam_save_calls_export;
 #endif
+
+    /* Initialize app visibility fields (EEP <TBD>) */
+    dst->app_atom = am_undefined;
+    dst->app_restricted = 0;
 }
 
 static void export_stage(Export *export,

@@ -276,6 +276,9 @@ void copy_out_registers(Process *c_p, Eterm *reg);
 void copy_in_registers(Process *c_p, Eterm *reg);
 void check_monitor_long_schedule(Process *c_p, Uint64 start_time,
                                  ErtsCodePtr start_time_i);
+int erts_check_app_visibility(Process *c_p, const Export *ep, ErtsCodePtr caller_pc);
+int erts_check_app_visibility_jit(Process *c_p, const Export *ep, Eterm caller_module_atom);
+void erts_preserve_caller_app_for_error_handler(Process *c_p, ErtsCodePtr saved_i);
 
 extern ErtsCodePtr beam_run_process;
 extern ErtsCodePtr beam_normal_exit;

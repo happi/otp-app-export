@@ -190,6 +190,16 @@ move_call_only(Src, CallDest) {
 
 i_call_ext(Dest) {
     //| -no_next
+    Export *ep = (Export*)($Dest);
+
+    /* For app_restricted calls, set caller_app for visibility check (EEP <TBD>) */
+    /* Note: caller_app is cleared in erts_check_app_visibility after use */
+    if (ep->app_restricted) {
+        c_p->caller_app = THE_NON_VALUE;  /* Will be set by visibility check from caller_pc if needed */
+        /* Save I for tail call case where CP doesn't point to actual caller (EEP <TBD>) */
+        c_p->caller_saved_i = I;
+    }
+
     $SAVE_CONTINUATION_POINTER($NEXT_INSTRUCTION);
     $DISPATCH_EXPORT($Dest);
 }
@@ -205,7 +215,15 @@ i_move_call_ext(Src, CallDest) {
 
 i_call_ext_only(Dest) {
     //| -no_next
-    $DISPATCH_EXPORT($Dest);
+    Export *ep = (Export*)($Dest);
+
+    /* For app_restricted calls, set caller_app for visibility check (EEP <TBD>) */
+    /* Note: caller_app is cleared in erts_check_app_visibility after use */
+    if (ep->app_restricted) {
+        c_p->caller_app = THE_NON_VALUE;  /* Will be set by visibility check from caller_pc if needed */
+    }
+
+    $DISPATCH_EXPORT_TAILCALL($Dest);
 }
 
 i_move_call_ext_only(CallDest, Src) {
@@ -213,13 +231,21 @@ i_move_call_ext_only(CallDest, Src) {
     Eterm call_dest = $CallDest;
     Eterm src = $Src;
     x(0) = src;
-    $DISPATCH_EXPORT(call_dest);
+    $DISPATCH_EXPORT_TAILCALL(call_dest);
 }
 
 i_call_ext_last(Dest, Deallocate) {
     //| -no_next
+    Export *ep = (Export*)($Dest);
+
+    /* For app_restricted calls, set caller_app for visibility check (EEP <TBD>) */
+    /* Note: caller_app is cleared in erts_check_app_visibility after use */
+    if (ep->app_restricted) {
+        c_p->caller_app = THE_NON_VALUE;  /* Will be set by visibility check from caller_pc if needed */
+    }
+
     $deallocate($Deallocate);
-    $DISPATCH_EXPORT($Dest);
+    $DISPATCH_EXPORT_TAILCALL($Dest);
 }
 
 i_move_call_ext_last(CallDest, Deallocate, Src) {
@@ -228,10 +254,10 @@ i_move_call_ext_last(CallDest, Deallocate, Src) {
     Eterm src = $Src;
     $deallocate($Deallocate);
     x(0) = src;
-    $DISPATCH_EXPORT(call_dest);
+    $DISPATCH_EXPORT_TAILCALL(call_dest);
 }
 
-APPLY(I, Deallocate, Next) {
+APPLY(I, Deallocate, Next, CallerPC) {
     //| -no_next
     const Export *ep;
 
@@ -243,6 +269,12 @@ APPLY(I, Deallocate, Next) {
         $HANDLE_APPLY_ERROR();
     } else if (ERTS_PROC_GET_SAVED_CALLS_BUF(c_p)) {
         save_calls(c_p, ep);
+    }
+
+    /* Check app visibility (EEP <TBD>) - use the passed caller PC */
+    if (erts_check_app_visibility(c_p, ep, (ErtsCodePtr)$CallerPC)) {
+        /* Visibility check failed - exception already set */
+        goto find_func_info;
     }
 
     $Next = ep->dispatch.addresses[erts_active_code_ix()];
@@ -257,7 +289,7 @@ HANDLE_APPLY_ERROR() {
 i_apply() {
     //| -no_next
     const BeamInstr *next;
-    $APPLY(NULL, 0, next);
+    $APPLY(NULL, 0, next, $NEXT_INSTRUCTION);
 
     $SAVE_CONTINUATION_POINTER($NEXT_INSTRUCTION);
     $DISPATCH_ABS(next);
@@ -266,7 +298,9 @@ i_apply() {
 i_apply_last(Deallocate) {
     //| -no_next
     const BeamInstr *next;
-    $APPLY(I, $Deallocate, next);
+    /* Save I for tail call case (EEP <TBD>) */
+    c_p->caller_saved_i = I;
+    $APPLY(I, $Deallocate, next, $NEXT_INSTRUCTION);
     $deallocate($Deallocate);
     $DISPATCH_ABS(next);
 }
@@ -274,11 +308,13 @@ i_apply_last(Deallocate) {
 i_apply_only() {
     //| -no_next
     const BeamInstr *next;
-    $APPLY(I, 0, next);
+    /* Save I for tail call case (EEP <TBD>) */
+    c_p->caller_saved_i = I;
+    $APPLY(I, 0, next, $NEXT_INSTRUCTION);
     $DISPATCH_ABS(next);
 }
 
-FIXED_APPLY(Arity, I, Deallocate, Next) {
+FIXED_APPLY(Arity, I, Deallocate, Next, CallerPC) {
     //| -no_next
     const Export *ep;
 
@@ -292,13 +328,19 @@ FIXED_APPLY(Arity, I, Deallocate, Next) {
         save_calls(c_p, ep);
     }
 
+    /* Check app visibility (EEP <TBD>) - use the passed caller PC */
+    if (erts_check_app_visibility(c_p, ep, (ErtsCodePtr)$CallerPC)) {
+        /* Visibility check failed - exception already set */
+        goto find_func_info;
+    }
+
     $Next = ep->dispatch.addresses[erts_active_code_ix()];
 }
 
 apply(Arity) {
     //| -no_next
     const BeamInstr *next;
-    $FIXED_APPLY($Arity, NULL, 0, next);
+    $FIXED_APPLY($Arity, NULL, 0, next, $NEXT_INSTRUCTION);
     $SAVE_CONTINUATION_POINTER($NEXT_INSTRUCTION);
     $DISPATCH_ABS(next);
 }
@@ -306,7 +348,7 @@ apply(Arity) {
 apply_last(Arity, Deallocate) {
     //| -no_next
     const BeamInstr *next;
-    $FIXED_APPLY($Arity, I, $Deallocate, next);
+    $FIXED_APPLY($Arity, I, $Deallocate, next, $NEXT_INSTRUCTION);
     $deallocate($Deallocate);
     $DISPATCH_ABS(next);
 }

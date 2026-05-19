@@ -357,6 +357,10 @@ form({attribute,_,import,_}, Module, _Opts) ->
 form({attribute,_,export,Es}, #imodule{exports=Exp0}=Module, _Opts) ->
     Exp = ordsets:union(ordsets:from_list(Es), Exp0),
     Module#imodule{exports=Exp};
+form({attribute,_,app_export,Es}=F, #imodule{exports=Exp0,attrs=As}=Module, _Opts) ->
+    %% Handle app-restricted exports (EEP <TBD>) - add to exports AND keep as attribute
+    Exp = ordsets:union(ordsets:from_list(Es), Exp0),
+    Module#imodule{exports=Exp,attrs=[attribute(F)|As]};
 form({attribute,_,nifs,Ns}, #imodule{nifs=Nifs0}=Module, _Opts) ->
     Nifs1 = case Nifs0 of
                 none ->
