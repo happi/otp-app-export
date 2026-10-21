@@ -117,31 +117,31 @@ void BeamGlobalAssembler::emit_dispatch_save_calls_export() {
     a.jmp(emit_setup_dispatchable_call(RET, ARG1));
 }
 
-void BeamModuleAssembler::emit_save_app_visibility_caller_pc(Label caller_pc) {
+void BeamModuleAssembler::emit_save_scope_visibility_caller_pc(Label caller_pc) {
     a.lea(ARG1, x86::qword_ptr(caller_pc));
     a.mov(x86::qword_ptr(c_p, offsetof(Process, caller_saved_i)), ARG1);
 }
 
-void BeamModuleAssembler::emit_check_app_visibility(const x86::Gp &exp,
+void BeamModuleAssembler::emit_check_scope_visibility(const x86::Gp &exp,
                                                     Label caller_pc,
-                                                    bool reset_caller_app) {
+                                                    bool reset_caller_scope) {
     a.lea(ARG3, x86::qword_ptr(caller_pc));
-    emit_check_app_visibility(exp, ARG3, reset_caller_app);
+    emit_check_scope_visibility(exp, ARG3, reset_caller_scope);
 }
 
-void BeamModuleAssembler::emit_check_app_visibility(const x86::Gp &exp,
+void BeamModuleAssembler::emit_check_scope_visibility(const x86::Gp &exp,
                                                     const x86::Gp &caller_pc,
-                                                    bool reset_caller_app) {
+                                                    bool reset_caller_scope) {
     Label allowed = a.new_label(), visibility_error = a.new_label();
 
-    a.cmp(x86::dword_ptr(exp, offsetof(Export, app_restricted)), imm(0));
+    a.cmp(x86::dword_ptr(exp, offsetof(Export, scope_restricted)), imm(0));
     a.je(allowed);
 
     a.mov(TMP_MEM1q, exp);
     a.mov(TMP_MEM2q, caller_pc);
 
-    if (reset_caller_app) {
-        a.mov(x86::qword_ptr(c_p, offsetof(Process, caller_app)),
+    if (reset_caller_scope) {
+        a.mov(x86::qword_ptr(c_p, offsetof(Process, caller_scope)),
               imm(THE_NON_VALUE));
     }
 
@@ -151,7 +151,7 @@ void BeamModuleAssembler::emit_check_app_visibility(const x86::Gp &exp,
     a.mov(ARG2, TMP_MEM1q);
     a.mov(ARG3, TMP_MEM2q);
     runtime_call<int (*)(Process *, const Export *, ErtsCodePtr),
-                 erts_check_app_visibility>();
+                 erts_check_scope_visibility>();
 
     emit_leave_runtime();
 
@@ -170,7 +170,7 @@ void BeamModuleAssembler::emit_check_app_visibility(const x86::Gp &exp,
     a.bind(allowed);
 }
 
-void BeamModuleAssembler::emit_check_external_fun_app_visibility(
+void BeamModuleAssembler::emit_check_external_fun_scope_visibility(
         const x86::Gp &exp,
         const x86::Gp &fun_thing,
         Label caller_pc,
@@ -182,25 +182,25 @@ void BeamModuleAssembler::emit_check_external_fun_app_visibility(
     a.je(local_fun);
 
     if (save_caller_pc) {
-        emit_save_app_visibility_caller_pc(caller_pc);
+        emit_save_scope_visibility_caller_pc(caller_pc);
     }
 
-    emit_check_app_visibility(exp, caller_pc, true);
+    emit_check_scope_visibility(exp, caller_pc, true);
 
     a.bind(local_fun);
 }
 
 void BeamModuleAssembler::emit_i_call_ext(const ArgExport &Exp) {
     mov_arg(RET, Exp);
-    emit_check_app_visibility(RET, current_label, true);
+    emit_check_scope_visibility(RET, current_label, true);
     x86::Mem destination = emit_setup_dispatchable_call(RET);
     erlang_call(destination, ARG1);
 }
 
 void BeamModuleAssembler::emit_i_call_ext_only(const ArgExport &Exp) {
     mov_arg(RET, Exp);
-    emit_save_app_visibility_caller_pc(current_label);
-    emit_check_app_visibility(RET, current_label, true);
+    emit_save_scope_visibility_caller_pc(current_label);
+    emit_check_scope_visibility(RET, current_label, true);
     x86::Mem destination = emit_setup_dispatchable_call(RET);
 
     emit_leave_frame();
@@ -212,8 +212,8 @@ void BeamModuleAssembler::emit_i_call_ext_last(const ArgExport &Exp,
     emit_deallocate(Deallocate);
 
     mov_arg(RET, Exp);
-    emit_save_app_visibility_caller_pc(current_label);
-    emit_check_app_visibility(RET, current_label, true);
+    emit_save_scope_visibility_caller_pc(current_label);
+    emit_check_scope_visibility(RET, current_label, true);
     x86::Mem destination = emit_setup_dispatchable_call(RET);
 
     emit_leave_frame();
@@ -229,7 +229,7 @@ x86::Mem BeamModuleAssembler::emit_variable_apply(bool includeI) {
     a.bind(entry);
 
     if (includeI) {
-        emit_save_app_visibility_caller_pc(entry);
+        emit_save_scope_visibility_caller_pc(entry);
     }
 
     emit_enter_runtime<Update::eReductions | Update::eHeapAlloc>();
@@ -255,7 +255,7 @@ x86::Mem BeamModuleAssembler::emit_variable_apply(bool includeI) {
     emit_raise_exception(entry, &apply3_mfa);
     a.bind(dispatch);
 
-    emit_check_app_visibility(RET, entry, false);
+    emit_check_scope_visibility(RET, entry, false);
 
     return emit_setup_dispatchable_call(RET);
 }
@@ -285,7 +285,7 @@ x86::Mem BeamModuleAssembler::emit_fixed_apply(const ArgWord &Arity,
     a.bind(entry);
 
     if (includeI) {
-        emit_save_app_visibility_caller_pc(entry);
+        emit_save_scope_visibility_caller_pc(entry);
     }
 
     mov_arg(ARG3, Arity);
@@ -313,7 +313,7 @@ x86::Mem BeamModuleAssembler::emit_fixed_apply(const ArgWord &Arity,
     emit_raise_exception(entry, &apply3_mfa);
     a.bind(dispatch);
 
-    emit_check_app_visibility(RET, entry, false);
+    emit_check_scope_visibility(RET, entry, false);
 
     return emit_setup_dispatchable_call(RET);
 }

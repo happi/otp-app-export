@@ -105,9 +105,9 @@ typedef struct export_
 
     } trampoline;
 
-    /* Application-level visibility control (EEP <TBD>) */
-    Eterm app_atom;         /* Application namespace atom, or am_undefined */
-    int app_restricted;     /* Non-zero if this export is app-restricted */
+    /* Application-level visibility control (EEP 80) */
+    Eterm scope_atom;         /* Application namespace atom, or am_undefined */
+    int scope_restricted;     /* Non-zero if this export is scope-restricted */
 } Export;
 
 #if defined(DEBUG)

@@ -239,12 +239,12 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
     return retval;
 }
 
-/* Parse -app() and -app_export() attributes (EEP <TBD>) */
-static void parse_app_attributes(LoaderState* stp, Module* mod_tab_p)
+/* Parse -scope() and -scope_export() attributes (EEP 80) */
+static void parse_scope_attributes(LoaderState* stp, Module* mod_tab_p)
 {
     ErtsCodeIndex code_ix = erts_staging_code_ix();
-    Eterm app_atom = am_undefined;
-    Eterm app_export_list = NIL;
+    Eterm scope_atom = am_undefined;
+    Eterm scope_export_list = NIL;
     const byte* attr_data;
     Sint attr_size;
     Eterm attributes;
@@ -283,7 +283,8 @@ static void parse_app_attributes(LoaderState* stp, Module* mod_tab_p)
         return;  /* Invalid attributes, skip silently for POC */
     }
 
-    /* Iterate through attribute list looking for {app, App} and {app_export, List} */
+    /* Iterate the attribute list looking for {scope, Scope} and
+     * {scope_export, List} */
     list = attributes;
     while (is_list(list)) {
         Eterm *cons = list_val(list);
@@ -295,32 +296,32 @@ static void parse_app_attributes(LoaderState* stp, Module* mod_tab_p)
                 Atom *atom_ptr = atom_tab(atom_val(tp[1]));
                 const byte *atom_name = erts_atom_get_name(atom_ptr);
 
-                /* Check if it's 'app' attribute */
-                if (atom_ptr->len == 3 &&
-                    sys_memcmp((char*)atom_name, "app", 3) == 0 &&
+                /* Check if it's the 'scope' attribute */
+                if (atom_ptr->len == 5 &&
+                    sys_memcmp((char*)atom_name, "scope", 5) == 0 &&
                     is_list(tp[2])) {
-                    Eterm *app_list = list_val(tp[2]);
-                    if (is_atom(CAR(app_list))) {
-                        app_atom = CAR(app_list);
+                    Eterm *scope_list = list_val(tp[2]);
+                    if (is_atom(CAR(scope_list))) {
+                        scope_atom = CAR(scope_list);
                     }
                 }
-                /* Check if it's 'app_export' attribute */
-                else if (atom_ptr->len == 10 &&
-                         sys_memcmp((char*)atom_name, "app_export", 10) == 0 &&
+                /* Check if it's the 'scope_export' attribute */
+                else if (atom_ptr->len == 12 &&
+                         sys_memcmp((char*)atom_name, "scope_export", 12) == 0 &&
                          is_list(tp[2])) {
-                    app_export_list = tp[2];
+                    scope_export_list = tp[2];
                 }
             }
         }
         list = CDR(cons);
     }
 
-    /* Store app_atom in Module */
-    mod_tab_p->app_atom = app_atom;
+    /* Store scope_atom in Module */
+    mod_tab_p->scope_atom = scope_atom;
 
-    /* If we have both app and app_export, mark the exports as restricted */
-    if (app_atom != am_undefined && is_list(app_export_list)) {
-        Eterm exp_list = app_export_list;
+    /* If we have both app and scope_export, mark the exports as restricted */
+    if (scope_atom != am_undefined && is_list(scope_export_list)) {
+        Eterm exp_list = scope_export_list;
 
         while (is_list(exp_list)) {
             Eterm *cons = list_val(exp_list);
@@ -334,14 +335,14 @@ static void parse_app_attributes(LoaderState* stp, Module* mod_tab_p)
                     Export *ep;
 
                     /* Get or create the export entry - erts_export_put returns existing if present
-                     * Note: The compiler should validate that functions in -app_export() are also
+                     * Note: The compiler should validate that functions in -scope_export() are also
                      * in -export(). We trust the compiler here. */
                     ep = erts_export_put(stp->module, func_atom, arity_val);
 
                     if (ep != NULL) {
                         /* Mark it as restricted */
-                        ep->app_restricted = 1;
-                        ep->app_atom = app_atom;
+                        ep->scope_restricted = 1;
+                        ep->scope_atom = scope_atom;
                     }
                 }
             }
@@ -428,8 +429,8 @@ erts_finish_loading(Binary* magic, Process* c_p,
 
     beam_load_finalize_code(stp, inst_p);
 
-    /* Parse and apply app visibility attributes (EEP <TBD>) */
-    parse_app_attributes(stp, mod_tab_p);
+    /* Parse and apply scope visibility attributes (EEP 80) */
+    parse_scope_attributes(stp, mod_tab_p);
 
 #if defined(LOAD_MEMORY_HARD_DEBUG) && defined(DEBUG)
     erts_fprintf(stderr,"Loaded %T\n",*modp);

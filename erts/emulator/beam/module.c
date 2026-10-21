@@ -96,8 +96,8 @@ static Module* module_alloc(Module* tmpl)
     erts_module_instance_init(&obj->old);
     obj->on_load = 0;
 
-    /* Initialize app visibility field (EEP <TBD>) */
-    obj->app_atom = am_undefined;
+    /* Initialize scope visibility field (EEP 80) */
+    obj->scope_atom = am_undefined;
 
     DBG_TRACE_MFA(make_atom(obj->module), 0, 0, "module_alloc");
     return obj;
@@ -287,7 +287,7 @@ static ERTS_INLINE void copy_module(Module* dst_mod, Module* src_mod)
     dst_mod->curr = src_mod->curr;
     dst_mod->old = src_mod->old;
     dst_mod->on_load = src_mod->on_load;
-    dst_mod->app_atom = src_mod->app_atom;  /* Copy app visibility field (EEP <TBD>) */
+    dst_mod->scope_atom = src_mod->scope_atom;  /* Copy scope visibility field (EEP 80) */
 }
 
 void module_start_staging(void)

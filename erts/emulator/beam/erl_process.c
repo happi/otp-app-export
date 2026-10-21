@@ -12612,8 +12612,8 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
     /* No need to initialize p->fcalls. */
 
     p->current = &p->u.initial;
-    p->caller_app = THE_NON_VALUE;  /* Initialize caller_app (EEP <TBD>) */
-    p->caller_saved_i = NULL;       /* Initialize caller_saved_i (EEP <TBD>) */
+    p->caller_scope = THE_NON_VALUE;  /* Initialize caller_scope (EEP 80) */
+    p->caller_saved_i = NULL;       /* Initialize caller_saved_i (EEP 80) */
 
     p->i = beam_run_process;
 

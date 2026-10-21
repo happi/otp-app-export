@@ -5851,8 +5851,8 @@ exported_from_module(Process* p, ErtsCodeIndex code_ix, Eterm mod)
                 continue;
             }
 
-            /* Skip app-restricted exports - they only appear in app_exports (EEP <TBD>) */
-            if (ep->app_restricted) {
+            /* Skip scope-restricted exports - they only appear in scope_exports (EEP 80) */
+            if (ep->scope_restricted) {
                 continue;
             }
 
@@ -5875,9 +5875,9 @@ exported_from_module(Process* p, ErtsCodeIndex code_ix, Eterm mod)
     return result;
 }
 
-/* Returns a list of all app-restricted exports for the module (EEP <TBD>). */
+/* Returns a list of all scope-restricted exports for the module (EEP 80). */
 static Eterm
-app_exported_from_module(Process* p, ErtsCodeIndex code_ix, Eterm mod)
+scope_exported_from_module(Process* p, ErtsCodeIndex code_ix, Eterm mod)
 {
     int i, num_exps;
     Eterm* hp = NULL;
@@ -5888,7 +5888,7 @@ app_exported_from_module(Process* p, ErtsCodeIndex code_ix, Eterm mod)
     for (i = 0; i < num_exps; i++) {
         Export* ep = export_list(i,code_ix);
 
-        if (ep->info.mfa.module == mod && ep->app_restricted) {
+        if (ep->info.mfa.module == mod && ep->scope_restricted) {
             Eterm tuple;
 
             if (erts_is_export_trampoline_active(ep, code_ix) &&
@@ -5981,8 +5981,8 @@ get_module_info(Process* p, ErtsCodeIndex code_ix,
         return md5_of_module(p, code_hdr);
     } else if (what == am_exports) {
         return exported_from_module(p, code_ix, module);
-    } else if (what == am_app_exports) {
-        return app_exported_from_module(p, code_ix, module);
+    } else if (what == am_scope_exports) {
+        return scope_exported_from_module(p, code_ix, module);
     } else if (what == am_functions) {
         return functions_in_module(p, code_hdr);
     } else if (what == am_nifs) {
@@ -6034,7 +6034,7 @@ module_info_0(Process* p, Eterm module)
     BUILD_INFO(am_md5);
     BUILD_INFO(am_compile);
     BUILD_INFO(am_attributes);
-    BUILD_INFO(am_app_exports);
+    BUILD_INFO(am_scope_exports);
     BUILD_INFO(am_exports);
     BUILD_INFO(am_module);
 #undef BUILD_INFO

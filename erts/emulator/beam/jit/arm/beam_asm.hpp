@@ -1429,20 +1429,20 @@ protected:
     void emit_return_do(bool set_I);
     void emit_dispatch_return(bool set_I);
 
-    /* Check app visibility for external calls.
+    /* Check scope visibility for external calls.
      * Jumps to 'allowed' label if call is permitted, or jumps to
      * raise_exception if blocked. Export must be in export_reg. */
-    void emit_check_app_visibility(a64::Gp export_reg, Label &allowed);
+    void emit_check_scope_visibility(a64::Gp export_reg, Label &allowed);
 
     /* Preserve caller app for tail calls through error_handler.
      * Called before tail calls to save caller context. */
-    void emit_preserve_caller_app_for_error_handler();
+    void emit_preserve_caller_scope_for_error_handler();
 
-    /* Gate any external dispatch with the app-visibility check.
+    /* Gate any external dispatch with the scope-visibility check.
      * Assumes ARG1 holds the Export pointer; ARG1 still holds it
      * on the allowed fall-through path. Pass is_tail=true for
-     * tail-call sites so caller_app is preserved for error_handler. */
-    void emit_app_visibility_gate(bool is_tail);
+     * tail-call sites so caller_scope is preserved for error_handler. */
+    void emit_scope_visibility_gate(bool is_tail);
 
 #include "beamasm_protos.h"
 

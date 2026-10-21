@@ -1305,35 +1305,35 @@ const Export *call_error_handler(Process* p,
 
     DBG_TRACE_MFA_P(mfa, "call_error_handler");
 
-    /* Capture caller's app for visibility checks downstream (EEP <TBD>).
+    /* Capture caller's scope for visibility checks downstream (EEP 80).
      * The actual restricted-function call is about to be re-issued via
      * error_handler:undefined_function/3 -> apply(), and by the time we
      * reach the second visibility check the immediate caller will be
-     * error_handler (no -app). Preserve the original caller's app on
-     * c_p->caller_app now, using either the continuation pointer on the
+     * error_handler (no -scope). Preserve the original caller's scope on
+     * c_p->caller_scope now, using either the continuation pointer on the
      * Erlang stack (good for non-tail callers, which left their CP on
      * the stack) or c_p->caller_saved_i (good for tail callers, which
      * have written it explicitly before dispatch). Only set when we
-     * find a real app atom; otherwise leave caller_app alone for the
+     * find a real scope atom; otherwise leave caller_scope alone for the
      * downstream check to handle. */
-    if (p->caller_app == THE_NON_VALUE) {
+    if (p->caller_scope == THE_NON_VALUE) {
         ErtsCodeIndex code_ix = erts_active_code_ix();
         ErtsCodePtr cp_pc = (ErtsCodePtr) p->stop[0];
         const ErtsCodeMFA *caller_mfa = erts_find_function_from_pc(cp_pc);
 
         if (caller_mfa) {
             Module *caller_mod = erts_get_module(caller_mfa->module, code_ix);
-            if (caller_mod && caller_mod->app_atom != am_undefined) {
-                p->caller_app = caller_mod->app_atom;
+            if (caller_mod && caller_mod->scope_atom != am_undefined) {
+                p->caller_scope = caller_mod->scope_atom;
             }
         }
 
-        if (p->caller_app == THE_NON_VALUE && p->caller_saved_i != NULL) {
+        if (p->caller_scope == THE_NON_VALUE && p->caller_saved_i != NULL) {
             caller_mfa = erts_find_function_from_pc(p->caller_saved_i);
             if (caller_mfa) {
                 Module *caller_mod = erts_get_module(caller_mfa->module, code_ix);
-                if (caller_mod && caller_mod->app_atom != am_undefined) {
-                    p->caller_app = caller_mod->app_atom;
+                if (caller_mod && caller_mod->scope_atom != am_undefined) {
+                    p->caller_scope = caller_mod->scope_atom;
                 }
             }
             p->caller_saved_i = NULL;
@@ -1555,19 +1555,19 @@ apply(Process* p, Eterm* reg, ErtsCodePtr I, Uint stack_offset)
      * create a stub entry which in turn calls the error handler. */
     ep = erts_export_get_or_make_stub(module, function, arity);
 
-    /* Preserve the caller's app via caller_saved_i so the visibility check
+    /* Preserve the caller's scope via caller_saved_i so the visibility check
      * after an error_handler bounce can recover the original caller.
-     * Always do the lookup, but only write caller_app when the lookup
-     * yields a real app atom; that way a same-app bounce keeps the
-     * preserved value (error_handler's app is undefined) and a cross-app
-     * direct apply overwrites any stale cache from a prior call (EEP <TBD>). */
+     * Always do the lookup, but only write caller_scope when the lookup
+     * yields a real scope atom; that way a same-scope bounce keeps the
+     * preserved value (error_handler's app is undefined) and a cross-scope
+     * direct apply overwrites any stale cache from a prior call (EEP 80). */
     if (p->caller_saved_i != NULL) {
         const ErtsCodeMFA *caller_mfa = erts_find_function_from_pc(p->caller_saved_i);
         if (caller_mfa) {
             ErtsCodeIndex code_ix = erts_active_code_ix();
             Module *caller_mod = erts_get_module(caller_mfa->module, code_ix);
-            if (caller_mod && caller_mod->app_atom != am_undefined) {
-                p->caller_app = caller_mod->app_atom;
+            if (caller_mod && caller_mod->scope_atom != am_undefined) {
+                p->caller_scope = caller_mod->scope_atom;
             }
         }
     }
@@ -1613,14 +1613,14 @@ fixed_apply(Process* p, Eterm* reg, Uint arity,
      * create a stub entry which in turn calls the error handler. */
     ep = erts_export_get_or_make_stub(module, function, arity);
 
-    /* Preserve the caller's app via caller_saved_i; see apply() above. */
+    /* Preserve the caller's scope via caller_saved_i; see apply() above. */
     if (p->caller_saved_i != NULL) {
         const ErtsCodeMFA *caller_mfa = erts_find_function_from_pc(p->caller_saved_i);
         if (caller_mfa) {
             ErtsCodeIndex code_ix = erts_active_code_ix();
             Module *caller_mod = erts_get_module(caller_mfa->module, code_ix);
-            if (caller_mod && caller_mod->app_atom != am_undefined) {
-                p->caller_app = caller_mod->app_atom;
+            if (caller_mod && caller_mod->scope_atom != am_undefined) {
+                p->caller_scope = caller_mod->scope_atom;
             }
         }
     }
@@ -1785,14 +1785,14 @@ call_fun(Process* p,    /* Current process. */
 
             ASSERT(ep);
 
-            /* Save closure's app for app visibility check before calling error_handler (EEP <TBD>).
+            /* Save closure's app for scope visibility check before calling error_handler (EEP 80).
              * Only set if not already set (preserves through error_handler/apply chains). */
-            if (p->caller_app == THE_NON_VALUE) {
+            if (p->caller_scope == THE_NON_VALUE) {
                 Module *fe_modp = erts_get_module(module, code_ix);
                 if (fe_modp != NULL) {
-                    if (fe_modp->app_atom != am_undefined) {
-                        /* Closure's home module has an app - save the app atom */
-                        p->caller_app = fe_modp->app_atom;
+                    if (fe_modp->scope_atom != am_undefined) {
+                        /* Closure's home module has an app - save the scope atom */
+                        p->caller_scope = fe_modp->scope_atom;
                     }
                 }
             }
@@ -2462,23 +2462,23 @@ erts_is_builtin(Eterm Mod, Eterm Name, int arity)
 }
 
 /*
- * Check app visibility for external calls (EEP <TBD>).
+ * Check scope visibility for external calls (EEP 80).
  * Returns 0 if the call is allowed, non-zero if it should be blocked.
- * If blocked, sets up c_p->freason and c_p->fvalue for badappcall error.
+ * If blocked, sets up c_p->freason and c_p->fvalue for the badscopecall error.
  */
 /*
  * JIT version: Takes caller module atom directly instead of PC
  * This is more efficient for JIT-compiled code where the module is known at compile time
  */
 int
-erts_check_app_visibility_jit(Process *c_p, const Export *ep, Eterm caller_module_atom)
+erts_check_scope_visibility_jit(Process *c_p, const Export *ep, Eterm caller_module_atom)
 {
     Module *caller_mod;
-    Eterm caller_app;
+    Eterm caller_scope;
     ErtsCodeIndex code_ix;
 
-    /* If export is not app-restricted, allow the call */
-    if (!ep->app_restricted) {
+    /* If export is not scope-restricted, allow the call */
+    if (!ep->scope_restricted) {
         return 0;
     }
 
@@ -2486,55 +2486,55 @@ erts_check_app_visibility_jit(Process *c_p, const Export *ep, Eterm caller_modul
      * common path and gives the right answer for direct calls. */
     code_ix = erts_active_code_ix();
     caller_mod = erts_get_module(caller_module_atom, code_ix);
-    caller_app = caller_mod ? caller_mod->app_atom : am_undefined;
+    caller_scope = caller_mod ? caller_mod->scope_atom : am_undefined;
 
     /* Bounce-through-error_handler fallback: when the immediate caller is
-     * error_handler (no -app of its own), the visibility check should
+     * error_handler (no -scope of its own), the visibility check should
      * apply to whatever originally called *into* error_handler. apply()
-     * preserves that original caller's app on c_p->caller_app via
+     * preserves that original caller's scope on c_p->caller_scope via
      * caller_saved_i; use it here. We do NOT clear the cache: a single
      * logical call may fire two visibility checks (direct gate + bounce
      * through error_handler), and both need the preserved value. The
-     * next external call's apply() will overwrite c_p->caller_app from
+     * next external call's apply() will overwrite c_p->caller_scope from
      * its own caller_saved_i (or leave it alone for direct calls, which
      * don't depend on the cache). */
     if (caller_module_atom == am_error_handler &&
-        c_p->caller_app != THE_NON_VALUE) {
-        caller_app = c_p->caller_app;
+        c_p->caller_scope != THE_NON_VALUE) {
+        caller_scope = c_p->caller_scope;
     }
 
-    if (caller_app == ep->app_atom) {
-        return 0; /* same app, allow */
+    if (caller_scope == ep->scope_atom) {
+        return 0; /* same scope, allow */
     }
 
-    /* Different apps or caller has no app - block the call */
+    /* Different scopes or caller has no app - block the call */
     c_p->freason = EXC_ERROR;
-    c_p->fvalue = am_badappcall;
+    c_p->fvalue = am_badscopecall;
     return 1;
 }
 
 int
-erts_check_app_visibility(Process *c_p, const Export *ep, ErtsCodePtr caller_pc)
+erts_check_scope_visibility(Process *c_p, const Export *ep, ErtsCodePtr caller_pc)
 {
     const ErtsCodeMFA *caller_mfa;
     Module *caller_mod;
-    Eterm caller_app;
+    Eterm caller_scope;
     ErtsCodeIndex code_ix;
-    int used_saved_app = 0;  /* Track if we used the saved caller_app */
+    int used_saved_scope = 0;  /* Track if we used the saved caller_scope */
 
-    /* If export is not app-restricted, allow the call */
-    if (!ep->app_restricted) {
+    /* If export is not scope-restricted, allow the call */
+    if (!ep->scope_restricted) {
         return 0;
     }
 
-    /* Check if caller_app is set (from previous app_visibility check in error_handler path) */
-    if (c_p->caller_app != THE_NON_VALUE) {
-        caller_app = c_p->caller_app;
-        used_saved_app = 1;  /* Mark that we're using the saved value */
+    /* Check if caller_scope is set (from previous scope_visibility check in error_handler path) */
+    if (c_p->caller_scope != THE_NON_VALUE) {
+        caller_scope = c_p->caller_scope;
+        used_saved_scope = 1;  /* Mark that we're using the saved value */
 
-        /* caller_app is the app atom directly, skip to app check.
+        /* caller_scope is the scope atom directly, skip to app check.
          * Will be cleared later if call succeeds. */
-        goto check_app;
+        goto check_scope;
     }
 
     /* Fall back to using caller_pc */
@@ -2546,7 +2546,7 @@ erts_check_app_visibility(Process *c_p, const Export *ep, ErtsCodePtr caller_pc)
             caller_mfa = c_p->current;
         } else {
             c_p->freason = EXC_ERROR;
-            c_p->fvalue = am_badappcall;
+            c_p->fvalue = am_badscopecall;
             return 1;
         }
     }
@@ -2559,61 +2559,61 @@ erts_check_app_visibility(Process *c_p, const Export *ep, ErtsCodePtr caller_pc)
         return 0;
     }
 
-    /* Get the caller's app atom from the module */
-    caller_app = caller_mod->app_atom;
+    /* Get the caller's scope atom from the module */
+    caller_scope = caller_mod->scope_atom;
 
     /* If caller is system code (undefined app), try saved instruction pointer (tail call case) */
-    if (caller_app == am_undefined && c_p->caller_saved_i != NULL) {
+    if (caller_scope == am_undefined && c_p->caller_saved_i != NULL) {
         caller_mfa = erts_find_function_from_pc(c_p->caller_saved_i);
         if (caller_mfa) {
             caller_mod = erts_get_module(caller_mfa->module, code_ix);
             if (caller_mod) {
-                caller_app = caller_mod->app_atom;
+                caller_scope = caller_mod->scope_atom;
                 /* Clear saved_i after use */
                 c_p->caller_saved_i = NULL;
             }
         }
     }
 
-    /* Save caller_app for future checks if not already set (error_handler path) */
-    if (c_p->caller_app == THE_NON_VALUE && caller_app != am_undefined) {
-        c_p->caller_app = caller_app;
+    /* Save caller_scope for future checks if not already set (error_handler path) */
+    if (c_p->caller_scope == THE_NON_VALUE && caller_scope != am_undefined) {
+        c_p->caller_scope = caller_scope;
     }
 
-check_app:
-    /* At this point, caller_app is the app atom (either from saved path or extracted from module) */
+check_scope:
+    /* At this point, caller_scope is the scope atom (either from saved path or extracted from module) */
 
-    /* If caller has same app as callee, allow the call */
-    if (caller_app == ep->app_atom) {
-        /* Only clear caller_app if we used the saved value (subsequent call in error_handler path) */
-        if (used_saved_app && c_p->caller_app != THE_NON_VALUE) {
-            c_p->caller_app = THE_NON_VALUE;
+    /* If caller has same scope as callee, allow the call */
+    if (caller_scope == ep->scope_atom) {
+        /* Only clear caller_scope if we used the saved value (subsequent call in error_handler path) */
+        if (used_saved_scope && c_p->caller_scope != THE_NON_VALUE) {
+            c_p->caller_scope = THE_NON_VALUE;
         }
         return 0;
     }
 
-    /* Different apps or caller has no app - block the call */
+    /* Different scopes or caller has no app - block the call */
     c_p->freason = EXC_ERROR;
-    c_p->fvalue = am_badappcall;
+    c_p->fvalue = am_badscopecall;
 
     return 1; /* Block the call */
 }
 
 /*
  * Preserve caller app for tail calls that may go through error_handler.
- * Called by JIT before tail calls when caller_app is not yet set.
- * Extracts app from saved_i and stores in caller_app.
+ * Called by JIT before tail calls when caller_scope is not yet set.
+ * Extracts app from saved_i and stores in caller_scope.
  */
 void
-erts_preserve_caller_app_for_error_handler(Process *c_p, ErtsCodePtr saved_i)
+erts_preserve_caller_scope_for_error_handler(Process *c_p, ErtsCodePtr saved_i)
 {
-    if (c_p->caller_app == THE_NON_VALUE && saved_i != NULL) {
+    if (c_p->caller_scope == THE_NON_VALUE && saved_i != NULL) {
         const ErtsCodeMFA *caller_mfa = erts_find_function_from_pc(saved_i);
         if (caller_mfa) {
             ErtsCodeIndex code_ix = erts_active_code_ix();
             Module *caller_mod = erts_get_module(caller_mfa->module, code_ix);
-            if (caller_mod && caller_mod->app_atom != am_undefined) {
-                c_p->caller_app = caller_mod->app_atom;
+            if (caller_mod && caller_mod->scope_atom != am_undefined) {
+                c_p->caller_scope = caller_mod->scope_atom;
             }
         }
     }

@@ -392,7 +392,7 @@ a64::Gp BeamModuleAssembler::emit_call_fun(bool skip_box_test,
         a.b_ne(next);
     }
 
-    /* Gate external funs (fun M:F/A) through the app-visibility check.
+    /* Gate external funs (fun M:F/A) through the scope-visibility check.
      * Local funs / closures point at compiler-generated functions in the
      * same module, so they don't route through Export and are skipped. */
     {
@@ -404,7 +404,7 @@ a64::Gp BeamModuleAssembler::emit_call_fun(bool skip_box_test,
         a.cbz(TMP2, local_fun);
 
         /* External fun: ARG1 holds the Export*. */
-        emit_app_visibility_gate(true);
+        emit_scope_visibility_gate(true);
 
         a.bind(local_fun);
     }

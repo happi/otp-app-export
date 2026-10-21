@@ -71,11 +71,11 @@ void BeamModuleAssembler::emit_move_deallocate_return() {
 }
 
 /*
- * App-restricted export visibility check (EEP <TBD>)
+ * Scope-restricted export visibility check (EEP 80)
  * Export must be in export_reg.
  * Passes caller module atom directly (known at compile time).
  */
-void BeamModuleAssembler::emit_check_app_visibility(a64::Gp export_reg, Label &allowed) {
+void BeamModuleAssembler::emit_check_scope_visibility(a64::Gp export_reg, Label &allowed) {
     /* Save Export pointer before entering runtime */
     a.str(export_reg, TMP_MEM1q);
 
@@ -88,7 +88,7 @@ void BeamModuleAssembler::emit_check_app_visibility(a64::Gp export_reg, Label &a
     mov_imm(ARG3, mod);
 
     runtime_call<int (*)(Process *, const Export *, Eterm),
-                 erts_check_app_visibility_jit>();
+                 erts_check_scope_visibility_jit>();
 
     emit_leave_runtime<Update::eReductions | Update::eStack | Update::eHeap>();
     emit_leave_runtime_frame();
@@ -110,18 +110,18 @@ void BeamModuleAssembler::emit_check_app_visibility(a64::Gp export_reg, Label &a
 }
 
 /*
- * Preserve caller app for tail calls through error_handler (EEP <TBD>)
+ * Preserve caller app for tail calls through error_handler (EEP 80)
  */
-void BeamModuleAssembler::emit_preserve_caller_app_for_error_handler() {
+void BeamModuleAssembler::emit_preserve_caller_scope_for_error_handler() {
     Label skip = a.new_label();
 
-    /* Check if c_p->caller_app is already set (not THE_NON_VALUE) */
-    a.ldr(TMP1, a64::Mem(c_p, offsetof(Process, caller_app)));
+    /* Check if c_p->caller_scope is already set (not THE_NON_VALUE) */
+    a.ldr(TMP1, a64::Mem(c_p, offsetof(Process, caller_scope)));
     mov_imm(TMP2, THE_NON_VALUE);
     a.cmp(TMP1, TMP2);
     a.b_ne(skip);  /* Already set, skip */
 
-    /* Call erts_preserve_caller_app_for_error_handler(c_p, c_p->caller_saved_i) */
+    /* Call erts_preserve_caller_scope_for_error_handler(c_p, c_p->caller_saved_i) */
     emit_enter_runtime_frame();
     emit_enter_runtime<Update::eReductions | Update::eStack | Update::eHeap>();
 
@@ -129,7 +129,7 @@ void BeamModuleAssembler::emit_preserve_caller_app_for_error_handler() {
     a.ldr(ARG2, a64::Mem(c_p, offsetof(Process, caller_saved_i)));
 
     runtime_call<void (*)(Process *, ErtsCodePtr),
-                 erts_preserve_caller_app_for_error_handler>();
+                 erts_preserve_caller_scope_for_error_handler>();
 
     emit_leave_runtime<Update::eReductions | Update::eStack | Update::eHeap>();
     emit_leave_runtime_frame();
@@ -138,35 +138,35 @@ void BeamModuleAssembler::emit_preserve_caller_app_for_error_handler() {
 }
 
 /*
- * Gate any external dispatch with the app-visibility check.
+ * Gate any external dispatch with the scope-visibility check.
  * Assumes ARG1 holds the Export pointer; ARG1 still holds it on the
  * allowed fall-through path. Tail-call sites pass is_tail=true so
- * caller_app is preserved across the error_handler trampoline.
+ * caller_scope is preserved across the error_handler trampoline.
  */
-void BeamModuleAssembler::emit_app_visibility_gate(bool is_tail) {
+void BeamModuleAssembler::emit_scope_visibility_gate(bool is_tail) {
     Label gate_pc = a.new_label();
     Label skip_check = a.new_label();
     Label allowed = a.new_label();
 
     /* Stash a PC inside the current function on c_p->caller_saved_i so
-     * call_error_handler can recover the caller's app if this external
+     * call_error_handler can recover the caller's scope if this external
      * call lands in a stub Export and bounces through error_handler.
-     * This is required to cover direct calls to never-loaded same-app
-     * restricted functions (ep->app_restricted reads 0 before the target
+     * This is required to cover direct calls to never-loaded same-scope
+     * restricted functions (ep->scope_restricted reads 0 before the target
      * module loads, so the cbz below would otherwise skip the gate). */
     a.bind(gate_pc);
     a.adr(TMP1, gate_pc);
     a.str(TMP1, a64::Mem(c_p, offsetof(Process, caller_saved_i)));
 
-    a.ldr(TMP1.w(), a64::Mem(ARG1, offsetof(Export, app_restricted)));
+    a.ldr(TMP1.w(), a64::Mem(ARG1, offsetof(Export, scope_restricted)));
     a.cbz(TMP1, skip_check);
 
     /* The JIT helper does a fresh lookup using the baked-in caller module
-     * atom, so the c_p->caller_app cache is *not* used as primary input
+     * atom, so the c_p->caller_scope cache is *not* used as primary input
      * here - no invalidation needed. The cache is only consulted in the
      * error_handler bounce fallback inside the helper. */
     (void)is_tail;
-    emit_check_app_visibility(ARG1, allowed);
+    emit_check_scope_visibility(ARG1, allowed);
 
     a.bind(allowed);
     a.bind(skip_check);
@@ -251,14 +251,14 @@ void BeamGlobalAssembler::emit_dispatch_save_calls_export() {
 
 void BeamModuleAssembler::emit_i_call_ext(const ArgExport &Exp) {
     mov_arg(ARG1, Exp);
-    emit_app_visibility_gate(false);
+    emit_scope_visibility_gate(false);
     a64::Mem target = emit_setup_dispatchable_call(ARG1);
     erlang_call(target);
 }
 
 void BeamModuleAssembler::emit_i_call_ext_only(const ArgExport &Exp) {
     mov_arg(ARG1, Exp);
-    emit_app_visibility_gate(true);
+    emit_scope_visibility_gate(true);
     a64::Mem target = emit_setup_dispatchable_call(ARG1);
     emit_leave_erlang_frame();
     branch(target);
@@ -282,7 +282,7 @@ void BeamModuleAssembler::emit_move_call_ext_last(const ArgYRegister &Src,
         auto dst = init_destination(Dst, TMP1);
         const a64::Mem src_ref = a64::Mem(E).post(2 * deallocate);
         mov_arg(ARG1, Exp);
-        emit_app_visibility_gate(true);
+        emit_scope_visibility_gate(true);
         a64::Mem target = emit_setup_dispatchable_call(ARG1);
         a.ldp(dst.reg, a64::x30, src_ref);
         flush_var(dst);
@@ -297,7 +297,7 @@ void BeamModuleAssembler::emit_move_call_ext_last(const ArgYRegister &Src,
     } else if (src_index + 1 == Deallocate.get()) {
         auto dst = init_destination(Dst, TMP1);
         mov_arg(ARG1, Exp);
-        emit_app_visibility_gate(true);
+        emit_scope_visibility_gate(true);
         a64::Mem target = emit_setup_dispatchable_call(ARG1);
         safe_ldp(dst.reg, a64::x30, getArgRef(Src));
         flush_var(dst);
@@ -319,7 +319,7 @@ a64::Mem BeamModuleAssembler::emit_variable_apply(bool includeI) {
     a.bind(entry);
 
     /* Stash the apply-entry PC so apply() (and the bounce-second-apply
-     * from error_handler) can recover the original caller's app via
+     * from error_handler) can recover the original caller's scope via
      * erts_find_function_from_pc. */
     a.adr(TMP1, entry);
     a.str(TMP1, a64::Mem(c_p, offsetof(Process, caller_saved_i)));
@@ -351,7 +351,7 @@ a64::Mem BeamModuleAssembler::emit_variable_apply(bool includeI) {
 
     a.bind(dispatch);
     /* ARG1 holds the resolved Export from apply(). Gate the dispatch. */
-    emit_app_visibility_gate(includeI);
+    emit_scope_visibility_gate(includeI);
     return emit_setup_dispatchable_call(ARG1);
 }
 
@@ -413,7 +413,7 @@ a64::Mem BeamModuleAssembler::emit_fixed_apply(const ArgWord &Arity,
     a.bind(dispatch);
 
     /* ARG1 holds the resolved Export from fixed_apply(). Gate the dispatch. */
-    emit_app_visibility_gate(includeI);
+    emit_scope_visibility_gate(includeI);
 
     return emit_setup_dispatchable_call(ARG1);
 }

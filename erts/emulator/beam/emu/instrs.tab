@@ -192,11 +192,11 @@ i_call_ext(Dest) {
     //| -no_next
     Export *ep = (Export*)($Dest);
 
-    /* For app_restricted calls, set caller_app for visibility check (EEP <TBD>) */
-    /* Note: caller_app is cleared in erts_check_app_visibility after use */
-    if (ep->app_restricted) {
-        c_p->caller_app = THE_NON_VALUE;  /* Will be set by visibility check from caller_pc if needed */
-        /* Save I for tail call case where CP doesn't point to actual caller (EEP <TBD>) */
+    /* For scope_restricted calls, set caller_scope for visibility check (EEP 80) */
+    /* Note: caller_scope is cleared in erts_check_scope_visibility after use */
+    if (ep->scope_restricted) {
+        c_p->caller_scope = THE_NON_VALUE;  /* Will be set by visibility check from caller_pc if needed */
+        /* Save I for tail call case where CP doesn't point to actual caller (EEP 80) */
         c_p->caller_saved_i = I;
     }
 
@@ -217,10 +217,10 @@ i_call_ext_only(Dest) {
     //| -no_next
     Export *ep = (Export*)($Dest);
 
-    /* For app_restricted calls, set caller_app for visibility check (EEP <TBD>) */
-    /* Note: caller_app is cleared in erts_check_app_visibility after use */
-    if (ep->app_restricted) {
-        c_p->caller_app = THE_NON_VALUE;  /* Will be set by visibility check from caller_pc if needed */
+    /* For scope_restricted calls, set caller_scope for visibility check (EEP 80) */
+    /* Note: caller_scope is cleared in erts_check_scope_visibility after use */
+    if (ep->scope_restricted) {
+        c_p->caller_scope = THE_NON_VALUE;  /* Will be set by visibility check from caller_pc if needed */
     }
 
     $DISPATCH_EXPORT_TAILCALL($Dest);
@@ -238,10 +238,10 @@ i_call_ext_last(Dest, Deallocate) {
     //| -no_next
     Export *ep = (Export*)($Dest);
 
-    /* For app_restricted calls, set caller_app for visibility check (EEP <TBD>) */
-    /* Note: caller_app is cleared in erts_check_app_visibility after use */
-    if (ep->app_restricted) {
-        c_p->caller_app = THE_NON_VALUE;  /* Will be set by visibility check from caller_pc if needed */
+    /* For scope_restricted calls, set caller_scope for visibility check (EEP 80) */
+    /* Note: caller_scope is cleared in erts_check_scope_visibility after use */
+    if (ep->scope_restricted) {
+        c_p->caller_scope = THE_NON_VALUE;  /* Will be set by visibility check from caller_pc if needed */
     }
 
     $deallocate($Deallocate);
@@ -271,8 +271,8 @@ APPLY(I, Deallocate, Next, CallerPC) {
         save_calls(c_p, ep);
     }
 
-    /* Check app visibility (EEP <TBD>) - use the passed caller PC */
-    if (erts_check_app_visibility(c_p, ep, (ErtsCodePtr)$CallerPC)) {
+    /* Check scope visibility (EEP 80) - use the passed caller PC */
+    if (erts_check_scope_visibility(c_p, ep, (ErtsCodePtr)$CallerPC)) {
         /* Visibility check failed - exception already set */
         goto find_func_info;
     }
@@ -298,7 +298,7 @@ i_apply() {
 i_apply_last(Deallocate) {
     //| -no_next
     const BeamInstr *next;
-    /* Save I for tail call case (EEP <TBD>) */
+    /* Save I for tail call case (EEP 80) */
     c_p->caller_saved_i = I;
     $APPLY(I, $Deallocate, next, $NEXT_INSTRUCTION);
     $deallocate($Deallocate);
@@ -308,7 +308,7 @@ i_apply_last(Deallocate) {
 i_apply_only() {
     //| -no_next
     const BeamInstr *next;
-    /* Save I for tail call case (EEP <TBD>) */
+    /* Save I for tail call case (EEP 80) */
     c_p->caller_saved_i = I;
     $APPLY(I, 0, next, $NEXT_INSTRUCTION);
     $DISPATCH_ABS(next);
@@ -328,8 +328,8 @@ FIXED_APPLY(Arity, I, Deallocate, Next, CallerPC) {
         save_calls(c_p, ep);
     }
 
-    /* Check app visibility (EEP <TBD>) - use the passed caller PC */
-    if (erts_check_app_visibility(c_p, ep, (ErtsCodePtr)$CallerPC)) {
+    /* Check scope visibility (EEP 80) - use the passed caller PC */
+    if (erts_check_scope_visibility(c_p, ep, (ErtsCodePtr)$CallerPC)) {
         /* Visibility check failed - exception already set */
         goto find_func_info;
     }

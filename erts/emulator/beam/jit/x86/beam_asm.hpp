@@ -1485,14 +1485,14 @@ protected:
     void emit_raise_exception(const ErtsCodeMFA *exp);
     void emit_raise_exception(Label I, const ErtsCodeMFA *exp);
     void emit_raise_exception(x86::Gp I, const ErtsCodeMFA *exp);
-    void emit_save_app_visibility_caller_pc(Label caller_pc);
-    void emit_check_app_visibility(const x86::Gp &exp,
+    void emit_save_scope_visibility_caller_pc(Label caller_pc);
+    void emit_check_scope_visibility(const x86::Gp &exp,
                                    Label caller_pc,
-                                   bool reset_caller_app);
-    void emit_check_app_visibility(const x86::Gp &exp,
+                                   bool reset_caller_scope);
+    void emit_check_scope_visibility(const x86::Gp &exp,
                                    const x86::Gp &caller_pc,
-                                   bool reset_caller_app);
-    void emit_check_external_fun_app_visibility(const x86::Gp &exp,
+                                   bool reset_caller_scope);
+    void emit_check_external_fun_scope_visibility(const x86::Gp &exp,
                                                 const x86::Gp &fun_thing,
                                                 Label caller_pc,
                                                 bool save_caller_pc);

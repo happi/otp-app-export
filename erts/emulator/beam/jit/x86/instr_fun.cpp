@@ -406,7 +406,7 @@ x86::Gp BeamModuleAssembler::emit_call_fun(bool skip_box_test,
     }
 
     a.mov(RET, emit_boxed_val(fun_thing, offsetof(ErlFunThing, entry)));
-    emit_check_external_fun_app_visibility(RET,
+    emit_check_external_fun_scope_visibility(RET,
                                            fun_thing,
                                            next,
                                            save_caller_pc);

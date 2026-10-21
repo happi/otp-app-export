@@ -99,9 +99,9 @@ static void export_init(Export *dst, const Export *template)
         beam_save_calls_export;
 #endif
 
-    /* Initialize app visibility fields (EEP <TBD>) */
-    dst->app_atom = am_undefined;
-    dst->app_restricted = 0;
+    /* Initialize scope visibility fields (EEP 80) */
+    dst->scope_atom = am_undefined;
+    dst->scope_restricted = 0;
 }
 
 static void export_stage(Export *export,
