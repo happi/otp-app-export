@@ -1342,7 +1342,7 @@ const Export *call_error_handler(Process* p,
             caller_mfa = erts_find_function_from_pc(cp_pc);
         }
 
-        if (caller_mfa && caller_mfa->module != am_error_handler) {
+        if (caller_mfa && !erts_is_scope_trampoline(caller_mfa->module)) {
             Module *caller_mod = erts_get_module(caller_mfa->module, code_ix);
             if (caller_mod) {
                 p->caller_scope = caller_mod->scope_atom;
@@ -2491,6 +2491,67 @@ erts_is_builtin(Eterm Mod, Eterm Name, int arity)
  *
  * Returns 0 to allow the call, non-zero to block it with freason set.
  */
+/*
+ * Modules that forward another module's call without a scope of their own
+ * (EEP 80). error_handler re-issues a call after autoloading its target;
+ * the run_process stub, erts_internal:spawn_init/1 and proc_lib:init_p/5
+ * make a spawned process's initial call. A check made from one of these
+ * uses the scope preserved on the process for the real caller.
+ */
+int
+erts_is_scope_trampoline(Eterm module)
+{
+    return module == am_error_handler
+        || module == am_erts_beamasm
+        || module == am_erts_internal
+        || module == am_proc_lib;
+}
+
+/*
+ * The scope of the module that is spawning a process: the nearest frame
+ * in the parent that is not a forwarding module. The spawn BIF's call
+ * site is in caller_saved_i; proc_lib and erts_internal sit between the
+ * spawner and the BIF, so the continuation pointers on the Erlang stack
+ * are walked past them. Returns THE_NON_VALUE when the spawner has no
+ * scope, which leaves the new process's initial call unattributed.
+ */
+Eterm
+erts_spawner_scope(Process *parent)
+{
+    ErtsCodeIndex code_ix = erts_active_code_ix();
+    const ErtsCodeMFA *mfa;
+    Eterm *ptr;
+
+    if (parent->caller_saved_i != NULL) {
+        mfa = erts_find_function_from_pc(parent->caller_saved_i);
+        if (mfa && !erts_is_scope_trampoline(mfa->module)) {
+            Module *modp = erts_get_module(mfa->module, code_ix);
+            return (modp && modp->scope_atom != am_undefined)
+                ? modp->scope_atom : THE_NON_VALUE;
+        }
+    }
+
+    for (ptr = parent->stop; ptr < STACK_START(parent); ptr++) {
+        ErtsCodePtr return_address;
+
+        if (!is_CP(*ptr)) {
+            continue;
+        }
+        erts_inspect_frame(ptr, &return_address);
+        mfa = erts_find_function_from_pc(return_address);
+        if (mfa == NULL || erts_is_scope_trampoline(mfa->module)) {
+            continue;
+        }
+        {
+            Module *modp = erts_get_module(mfa->module, code_ix);
+            return (modp && modp->scope_atom != am_undefined)
+                ? modp->scope_atom : THE_NON_VALUE;
+        }
+    }
+
+    return THE_NON_VALUE;
+}
+
 int
 erts_scope_visibility_slow(Process *c_p,
                            const Export *ep,
@@ -2503,10 +2564,13 @@ erts_scope_visibility_slow(Process *c_p,
         return 0;
     }
 
-    /* error_handler has no scope of its own. When it is re-applying a call
-     * that bounced through it, the scope that matters is the one
-     * call_error_handler preserved for the original caller. */
-    if (caller_module == am_error_handler &&
+    /* A forwarding module has no scope of its own: error_handler
+     * re-applying a call that bounced through it, or the run_process stub,
+     * erts_internal:spawn_init/1 and proc_lib:init_p/5 making a spawned
+     * process's initial call. The scope that matters is the one preserved
+     * on the process for the original caller, or for the spawner. It is
+     * consumed here. */
+    if (erts_is_scope_trampoline(caller_module) &&
         c_p->caller_scope != THE_NON_VALUE) {
         caller_scope = c_p->caller_scope;
         c_p->caller_scope = THE_NON_VALUE;
@@ -2550,7 +2614,7 @@ erts_check_scope_visibility_jit(Process *c_p, const Export *ep, Eterm caller_mod
      * next external call's apply() will overwrite c_p->caller_scope from
      * its own caller_saved_i (or leave it alone for direct calls, which
      * don't depend on the cache). */
-    if (caller_module_atom == am_error_handler &&
+    if (erts_is_scope_trampoline(caller_module_atom) &&
         c_p->caller_scope != THE_NON_VALUE) {
         caller_scope = c_p->caller_scope;
     }
@@ -2579,18 +2643,18 @@ erts_check_scope_visibility(Process *c_p, const Export *ep, ErtsCodePtr caller_p
         return 0;
     }
 
-    /* Check if caller_scope is set (from previous scope_visibility check in error_handler path) */
-    if (c_p->caller_scope != THE_NON_VALUE) {
-        caller_scope = c_p->caller_scope;
-        used_saved_scope = 1;  /* Mark that we're using the saved value */
-
-        /* caller_scope is the scope atom directly, skip to app check.
-         * Will be cleared later if call succeeds. */
-        goto check_scope;
-    }
-
     /* Fall back to using caller_pc */
     caller_mfa = erts_find_function_from_pc(caller_pc);
+
+    /* A forwarding module (error_handler, the run_process stub,
+     * erts_internal:spawn_init/1, proc_lib:init_p/5) uses the scope
+     * preserved on the process for the original caller or the spawner. */
+    if (caller_mfa && erts_is_scope_trampoline(caller_mfa->module) &&
+        c_p->caller_scope != THE_NON_VALUE) {
+        caller_scope = c_p->caller_scope;
+        used_saved_scope = 1;
+        goto check_scope;
+    }
 
     if (caller_mfa == NULL) {
         /* Can't find caller MFA from PC - try c_p->current as final fallback */

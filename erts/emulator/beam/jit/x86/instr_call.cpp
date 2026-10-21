@@ -263,9 +263,11 @@ x86::Mem BeamModuleAssembler::emit_variable_apply(bool includeI) {
     align_erlang_cp();
     a.bind(entry);
 
-    if (includeI) {
-        emit_save_scope_visibility_caller_pc(entry);
-    }
+    /* Every apply records its call site, body and tail alike, so that a
+     * call that bounces through error_handler is attributed to this
+     * module and not to whichever external call site last wrote
+     * caller_saved_i (EEP 80). */
+    emit_save_scope_visibility_caller_pc(entry);
 
     emit_enter_runtime<Update::eReductions | Update::eHeapAlloc>();
 
@@ -319,9 +321,7 @@ x86::Mem BeamModuleAssembler::emit_fixed_apply(const ArgWord &Arity,
     align_erlang_cp();
     a.bind(entry);
 
-    if (includeI) {
-        emit_save_scope_visibility_caller_pc(entry);
-    }
+    emit_save_scope_visibility_caller_pc(entry);
 
     mov_arg(ARG3, Arity);
 

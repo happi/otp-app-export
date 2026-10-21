@@ -12612,7 +12612,13 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
     /* No need to initialize p->fcalls. */
 
     p->current = &p->u.initial;
-    p->caller_scope = THE_NON_VALUE;  /* Initialize caller_scope (EEP 80) */
+    /* EEP 80: the initial call of a spawned process is attributed to the
+     * module that spawned it. The scope is carried on caller_scope and
+     * consumed by the first check made from a forwarding module (the
+     * run_process stub, erts_internal:spawn_init/1, proc_lib:init_p/5, or
+     * error_handler after an autoload). A process created without a local
+     * parent, such as one spawned from another node, starts with no scope. */
+    p->caller_scope = parent ? erts_spawner_scope(parent) : THE_NON_VALUE;
     p->caller_saved_i = NULL;       /* Initialize caller_saved_i (EEP 80) */
 
     p->i = beam_run_process;

@@ -283,6 +283,7 @@ atom erl_tracer
 atom erlang
 atom erl_signal_server
 atom error_handler
+atom erts_beamasm
 atom error_info
 atom error_logger
 atom error_only
@@ -639,6 +640,7 @@ atom return_to_trace
 atom return_trace
 atom reuse
 atom run_process
+atom proc_lib
 atom run_queue
 atom run_queue_lengths
 atom run_queue_lengths_all
