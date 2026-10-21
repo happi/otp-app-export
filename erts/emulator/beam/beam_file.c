@@ -1540,15 +1540,6 @@ static int read_beam_chunks(const IFF_File *file,
     Sint32 beam_id;
     int i;
 
-    FILE *dbg = fopen("/tmp/app_check.log", "a");
-    if (dbg) {
-        fprintf(dbg, "read_beam_chunks: Requested IDs:\n");
-        for (i = 0; i < count; i++) {
-            fprintf(dbg, "  [%d] = 0x%08x\n", i, (unsigned int)ids[i]);
-        }
-        fclose(dbg);
-    }
-
     for (i = 0; i < count; i++) {
         chunks[i].iff_id = 0;
         chunks[i].data = NULL;
@@ -1578,44 +1569,11 @@ static int read_beam_chunks(const IFF_File *file,
         LoadAssert(beamreader_read_bytes(&reader, chunk_size, &chunk_data));
         reader.head += storage_size - chunk_size;
 
-        FILE *dbg_chunks = fopen("/tmp/app_check.log", "a");
-        if (dbg_chunks) {
-            fprintf(dbg_chunks, "Found chunk: 0x%08x (size=%d)\n",
-                    (unsigned int)chunk_id, (int)chunk_size);
-            fclose(dbg_chunks);
-        }
-
         for (i = 0; i < count; i++) {
-            if (chunk_id == 0x41747472 && i == 7) {
-                FILE *dbg_cmp = fopen("/tmp/app_check.log", "a");
-                if (dbg_cmp) {
-                    fprintf(dbg_cmp, "Comparing Attr: ids[%d]=0x%08x vs chunk_id=0x%08x, match=%d\n",
-                            i, (unsigned int)ids[i], (unsigned int)chunk_id, ids[i] == chunk_id);
-                    fclose(dbg_cmp);
-                }
-            }
             if (ids[i] == chunk_id) {
-                if (chunk_id == 0x41747472) {
-                    FILE *dbg_before = fopen("/tmp/app_check.log", "a");
-                    if (dbg_before) {
-                        fprintf(dbg_before, "BEFORE SET chunks[%d]: size=%d, data=%p\n",
-                                i, (int)chunks[i].size, (void*)chunks[i].data);
-                        fclose(dbg_before);
-                    }
-                }
-
                 chunks[i].iff_id = chunk_id;
                 chunks[i].data = chunk_data;
                 chunks[i].size = chunk_size;
-
-                if (chunk_id == 0x41747472) {
-                    FILE *dbg_set = fopen("/tmp/app_check.log", "a");
-                    if (dbg_set) {
-                        fprintf(dbg_set, "AFTER SET chunks[%d]: size=%d, data=%p (assigned from chunk_size=%d, chunk_data=%p)\n",
-                                i, (int)chunks[i].size, (void*)chunks[i].data, (int)chunk_size, (void*)chunk_data);
-                        fclose(dbg_set);
-                    }
-                }
 
                 break;
             }
@@ -1783,13 +1741,6 @@ beamfile_read(const byte *data, size_t size, BeamFile *beam) {
 
     beam->strings.data = chunks[STR_CHUNK].data;
     beam->strings.size = chunks[STR_CHUNK].size;
-
-    FILE *dbg_chunks = fopen("/tmp/app_check.log", "a");
-    if (dbg_chunks) {
-        fprintf(dbg_chunks, "ATTR_CHUNK[%d]: size=%d, data=%p\n",
-                ATTR_CHUNK, (int)chunks[ATTR_CHUNK].size, (void*)chunks[ATTR_CHUNK].data);
-        fclose(dbg_chunks);
-    }
 
     beam->attributes.data = chunks[ATTR_CHUNK].data;
     beam->attributes.size = chunks[ATTR_CHUNK].size;
