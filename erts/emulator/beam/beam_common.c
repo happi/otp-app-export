@@ -2508,26 +2508,50 @@ erts_is_scope_trampoline(Eterm module)
 }
 
 /*
- * The scope of the module that is spawning a process: the nearest frame
- * in the parent that is not a forwarding module. The spawn BIF's call
- * site is in caller_saved_i; proc_lib and erts_internal sit between the
- * spawner and the BIF, so the continuation pointers on the Erlang stack
- * are walked past them. Returns THE_NON_VALUE when the spawner has no
- * scope, which leaves the new process's initial call unattributed.
+ * The scope of the module that is spawning a process: the function that
+ * called the spawn BIF, unless it forwards for someone else, in which case
+ * the nearest frame on the parent's stack that does not. The BIF call site
+ * comes from the BIF itself (BIF_I); calls to BIFs do not pass through the
+ * export gate, so the call site saved there would be stale here. proc_lib,
+ * erts_internal and the erlang module's own spawn wrappers sit between the
+ * spawner and the BIF and are walked past. Returns THE_NON_VALUE when the
+ * spawner has no scope, which leaves the new process's initial call
+ * unattributed.
  */
+static int
+is_spawn_forwarder(Eterm module)
+{
+    return module == am_erlang || erts_is_scope_trampoline(module);
+}
+
+static Eterm
+scope_of_code(ErtsCodePtr pc, ErtsCodeIndex code_ix, int *found)
+{
+    const ErtsCodeMFA *mfa = erts_find_function_from_pc(pc);
+    Module *modp;
+
+    *found = 0;
+    if (mfa == NULL || is_spawn_forwarder(mfa->module)) {
+        return THE_NON_VALUE;
+    }
+    *found = 1;
+    modp = erts_get_module(mfa->module, code_ix);
+    return (modp && modp->scope_atom != am_undefined)
+        ? modp->scope_atom : THE_NON_VALUE;
+}
+
 Eterm
-erts_spawner_scope(Process *parent)
+erts_spawner_scope(Process *parent, ErtsCodePtr spawner_pc)
 {
     ErtsCodeIndex code_ix = erts_active_code_ix();
-    const ErtsCodeMFA *mfa;
+    Eterm scope;
     Eterm *ptr;
+    int found;
 
-    if (parent->caller_saved_i != NULL) {
-        mfa = erts_find_function_from_pc(parent->caller_saved_i);
-        if (mfa && !erts_is_scope_trampoline(mfa->module)) {
-            Module *modp = erts_get_module(mfa->module, code_ix);
-            return (modp && modp->scope_atom != am_undefined)
-                ? modp->scope_atom : THE_NON_VALUE;
+    if (spawner_pc != NULL) {
+        scope = scope_of_code(spawner_pc, code_ix, &found);
+        if (found) {
+            return scope;
         }
     }
 
@@ -2538,14 +2562,9 @@ erts_spawner_scope(Process *parent)
             continue;
         }
         erts_inspect_frame(ptr, &return_address);
-        mfa = erts_find_function_from_pc(return_address);
-        if (mfa == NULL || erts_is_scope_trampoline(mfa->module)) {
-            continue;
-        }
-        {
-            Module *modp = erts_get_module(mfa->module, code_ix);
-            return (modp && modp->scope_atom != am_undefined)
-                ? modp->scope_atom : THE_NON_VALUE;
+        scope = scope_of_code(return_address, code_ix, &found);
+        if (found) {
+            return scope;
         }
     }
 

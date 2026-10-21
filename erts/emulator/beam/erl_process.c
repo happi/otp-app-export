@@ -12618,7 +12618,8 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
      * run_process stub, erts_internal:spawn_init/1, proc_lib:init_p/5, or
      * error_handler after an autoload). A process created without a local
      * parent, such as one spawned from another node, starts with no scope. */
-    p->caller_scope = parent ? erts_spawner_scope(parent) : THE_NON_VALUE;
+    p->caller_scope = parent ? erts_spawner_scope(parent, so->spawner_pc)
+                             : THE_NON_VALUE;
     p->caller_saved_i = NULL;       /* Initialize caller_saved_i (EEP 80) */
 
     p->i = beam_run_process;

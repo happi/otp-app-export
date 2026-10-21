@@ -1568,6 +1568,8 @@ typedef struct {
     Uint32 monitor_oflags;      /* flags to bitwise-or onto origin flags */
     Uint32 link_oflags;         /* flags to bitwise-or onto origin link flags */
     Eterm opts;                 /* Option list for seq-trace... */
+    ErtsCodePtr spawner_pc;     /* EEP 80: call site of the spawn BIF in the
+                                 * parent, or NULL */
 
     /* Input fields used for distributed spawn only */
     Eterm parent_id;
@@ -1602,6 +1604,7 @@ typedef struct {
         (SOP)->monitor_tag = THE_NON_VALUE;                             \
         (SOP)->monitor_oflags = (Uint32) 0;                             \
         (SOP)->link_oflags = (Uint32) 0;                                \
+        (SOP)->spawner_pc = NULL;                                       \
     } while (0)
 
 /*

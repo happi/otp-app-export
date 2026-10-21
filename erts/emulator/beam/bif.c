@@ -94,6 +94,7 @@ BIF_RETTYPE spawn_3(BIF_ALIST_3)
 
     ERTS_SET_DEFAULT_SPAWN_OPTS(&so);
 
+    so.spawner_pc = BIF_I; /* EEP 80: the spawn call site */
     pid = erl_create_process(BIF_P, BIF_ARG_1, BIF_ARG_2, BIF_ARG_3, &so);
     if (is_non_value(pid)) {
 	BIF_ERROR(BIF_P, so.error_code);
@@ -1011,6 +1012,7 @@ BIF_RETTYPE spawn_link_3(BIF_ALIST_3)
     so.flags |= SPO_LINK;
     so.opts = CONS(&tmp_heap[0], am_link, so.opts);
 
+    so.spawner_pc = BIF_I; /* EEP 80: the spawn call site */
     pid = erl_create_process(BIF_P, BIF_ARG_1, BIF_ARG_2, BIF_ARG_3, &so);
     if (is_non_value(pid)) {
 	BIF_ERROR(BIF_P, so.error_code);
@@ -1055,6 +1057,7 @@ BIF_RETTYPE spawn_opt_4(BIF_ALIST_4)
      */
     so.opts = BIF_ARG_4;
     so.tag = am_spawn_reply;
+    so.spawner_pc = BIF_I; /* EEP 80: the spawn call site */
     pid = erl_create_process(BIF_P, BIF_ARG_1, BIF_ARG_2, BIF_ARG_3, &so);
     if (is_non_value(pid)) {
 	BIF_ERROR(BIF_P, so.error_code);
@@ -1123,6 +1126,7 @@ BIF_RETTYPE erts_internal_spawn_request_4(BIF_ALIST_4)
     /*
      * Spawn the process.
      */
+    so.spawner_pc = BIF_I; /* EEP 80: the spawn call site */
     tmp = erl_create_process(BIF_P, am_erts_internal, am_spawn_init, tmp, &so);
     if (is_non_value(tmp)) {
         switch (so.error_code) {
