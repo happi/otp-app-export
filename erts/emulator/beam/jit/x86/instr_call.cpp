@@ -192,6 +192,16 @@ void BeamModuleAssembler::emit_check_external_fun_scope_visibility(
 
 void BeamModuleAssembler::emit_i_call_ext(const ArgExport &Exp) {
     mov_arg(RET, Exp);
+    /* Record the immediate caller even for a body call. A call to a module
+     * that is not loaded yet dispatches through a stub export, which is not
+     * yet marked scope-restricted, so the gate below skips and the scope
+     * check happens later, after error_handler has loaded the module. By
+     * then only this PC identifies the caller: the stack CP is the right
+     * answer for a body call but the wrong one after a tail call, and
+     * call_error_handler cannot tell the two apart. Writing it here keeps
+     * caller_saved_i always equal to the immediate caller, which is what
+     * the ARM gate already does for every external dispatch. */
+    emit_save_scope_visibility_caller_pc(current_label);
     emit_check_scope_visibility(RET, current_label, true);
     x86::Mem destination = emit_setup_dispatchable_call(RET);
     erlang_call(destination, ARG1);

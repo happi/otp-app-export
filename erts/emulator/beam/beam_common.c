@@ -1310,33 +1310,43 @@ const Export *call_error_handler(Process* p,
      * error_handler:undefined_function/3 -> apply(), and by the time we
      * reach the second visibility check the immediate caller will be
      * error_handler (no -scope). Preserve the original caller's scope on
-     * c_p->caller_scope now, using either the continuation pointer on the
-     * Erlang stack (good for non-tail callers, which left their CP on
-     * the stack) or c_p->caller_saved_i (good for tail callers, which
-     * have written it explicitly before dispatch). Only set when we
-     * find a real scope atom; otherwise leave caller_scope alone for the
-     * downstream check to handle. */
-    if (p->caller_scope == THE_NON_VALUE) {
+     * c_p->caller_scope now.
+     *
+     * c_p->caller_saved_i is written by every external dispatch and holds a
+     * PC inside the function that made this call, so it is the immediate
+     * caller for both body and tail calls. The continuation pointer on the
+     * Erlang stack is only a fallback: after a tail call the caller's frame
+     * is gone and p->stop[0] points at the caller's caller, which may sit
+     * in a different scope.
+     *
+     * The capture is unconditional. One process can bounce through
+     * error_handler several times before the restricted call is reached:
+     * loading the intermediate module is itself a bounce, and a stale
+     * caller_scope from that first bounce would otherwise be reused as the
+     * caller identity for the second one, rejecting a call the intermediate
+     * module was allowed to make. Each bounce attributes to its own
+     * immediate caller; a bounce whose caller is error_handler itself keeps
+     * the value it was given, since error_handler is re-issuing someone
+     * else's call. */
+    {
         ErtsCodeIndex code_ix = erts_active_code_ix();
-        ErtsCodePtr cp_pc = (ErtsCodePtr) p->stop[0];
-        const ErtsCodeMFA *caller_mfa = erts_find_function_from_pc(cp_pc);
+        const ErtsCodeMFA *caller_mfa = NULL;
 
-        if (caller_mfa) {
-            Module *caller_mod = erts_get_module(caller_mfa->module, code_ix);
-            if (caller_mod && caller_mod->scope_atom != am_undefined) {
-                p->caller_scope = caller_mod->scope_atom;
-            }
+        if (p->caller_saved_i != NULL) {
+            caller_mfa = erts_find_function_from_pc(p->caller_saved_i);
+            p->caller_saved_i = NULL;
         }
 
-        if (p->caller_scope == THE_NON_VALUE && p->caller_saved_i != NULL) {
-            caller_mfa = erts_find_function_from_pc(p->caller_saved_i);
-            if (caller_mfa) {
-                Module *caller_mod = erts_get_module(caller_mfa->module, code_ix);
-                if (caller_mod && caller_mod->scope_atom != am_undefined) {
-                    p->caller_scope = caller_mod->scope_atom;
-                }
+        if (caller_mfa == NULL) {
+            ErtsCodePtr cp_pc = (ErtsCodePtr) p->stop[0];
+            caller_mfa = erts_find_function_from_pc(cp_pc);
+        }
+
+        if (caller_mfa && caller_mfa->module != am_error_handler) {
+            Module *caller_mod = erts_get_module(caller_mfa->module, code_ix);
+            if (caller_mod) {
+                p->caller_scope = caller_mod->scope_atom;
             }
-            p->caller_saved_i = NULL;
         }
     }
 
