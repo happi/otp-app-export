@@ -105,9 +105,17 @@ typedef struct export_
 
     } trampoline;
 
-    /* Application-level visibility control (EEP 80) */
-    Eterm scope_atom;         /* Application namespace atom, or am_undefined */
-    int scope_restricted;     /* Non-zero if this export is scope-restricted */
+    /* Visibility scope control (EEP 80).
+     *
+     * THE_NON_VALUE means the export is unrestricted, which is the case for
+     * every ordinary export and for a stub whose module has not been loaded
+     * yet. Otherwise it holds the scope atom a caller must declare.
+     *
+     * One word, read at the call site and compared against the caller's own
+     * scope, which the JIT bakes in as an immediate. The loader writes this
+     * field when a module is loaded or reloaded, so a call site needs no
+     * knowledge of load order and nothing to invalidate. */
+    Eterm required_scope;
 } Export;
 
 #if defined(DEBUG)

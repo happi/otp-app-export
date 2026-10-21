@@ -2480,6 +2480,48 @@ erts_is_builtin(Eterm Mod, Eterm Name, int arity)
  * JIT version: Takes caller module atom directly instead of PC
  * This is more efficient for JIT-compiled code where the module is known at compile time
  */
+/*
+ * Cold path for the JIT's scope gate (EEP 80).
+ *
+ * The gate resolves the common cases inline: an unrestricted export, or a
+ * caller whose own scope matches. It only calls here when the export is
+ * restricted and this module's baked scope does not match, which is either a
+ * genuine cross-scope call or error_handler re-issuing somebody else's call
+ * after autoloading the target. The caller module atom tells the two apart.
+ *
+ * Returns 0 to allow the call, non-zero to block it with freason set.
+ */
+int
+erts_scope_visibility_slow(Process *c_p,
+                           const Export *ep,
+                           Eterm caller_scope,
+                           Eterm caller_module)
+{
+    Eterm required = ep->required_scope;
+
+    if (required == THE_NON_VALUE) {
+        return 0;
+    }
+
+    /* error_handler has no scope of its own. When it is re-applying a call
+     * that bounced through it, the scope that matters is the one
+     * call_error_handler preserved for the original caller. */
+    if (caller_module == am_error_handler &&
+        c_p->caller_scope != THE_NON_VALUE) {
+        caller_scope = c_p->caller_scope;
+        c_p->caller_scope = THE_NON_VALUE;
+    }
+
+    if (caller_scope == required) {
+        return 0;
+    }
+
+    c_p->freason = EXC_ERROR;
+    c_p->fvalue = am_badscopecall;
+
+    return 1;
+}
+
 int
 erts_check_scope_visibility_jit(Process *c_p, const Export *ep, Eterm caller_module_atom)
 {
@@ -2487,8 +2529,8 @@ erts_check_scope_visibility_jit(Process *c_p, const Export *ep, Eterm caller_mod
     Eterm caller_scope;
     ErtsCodeIndex code_ix;
 
-    /* If export is not scope-restricted, allow the call */
-    if (!ep->scope_restricted) {
+    /* An unrestricted export allows every caller */
+    if (ep->required_scope == THE_NON_VALUE) {
         return 0;
     }
 
@@ -2513,7 +2555,7 @@ erts_check_scope_visibility_jit(Process *c_p, const Export *ep, Eterm caller_mod
         caller_scope = c_p->caller_scope;
     }
 
-    if (caller_scope == ep->scope_atom) {
+    if (caller_scope == ep->required_scope) {
         return 0; /* same scope, allow */
     }
 
@@ -2532,8 +2574,8 @@ erts_check_scope_visibility(Process *c_p, const Export *ep, ErtsCodePtr caller_p
     ErtsCodeIndex code_ix;
     int used_saved_scope = 0;  /* Track if we used the saved caller_scope */
 
-    /* If export is not scope-restricted, allow the call */
-    if (!ep->scope_restricted) {
+    /* An unrestricted export allows every caller */
+    if (ep->required_scope == THE_NON_VALUE) {
         return 0;
     }
 
@@ -2594,7 +2636,7 @@ check_scope:
     /* At this point, caller_scope is the scope atom (either from saved path or extracted from module) */
 
     /* If caller has same scope as callee, allow the call */
-    if (caller_scope == ep->scope_atom) {
+    if (caller_scope == ep->required_scope) {
         /* Only clear caller_scope if we used the saved value (subsequent call in error_handler path) */
         if (used_saved_scope && c_p->caller_scope != THE_NON_VALUE) {
             c_p->caller_scope = THE_NON_VALUE;

@@ -134,9 +134,33 @@ void BeamModuleAssembler::emit_check_scope_visibility(const x86::Gp &exp,
                                                     bool reset_caller_scope) {
     Label allowed = a.new_label(), visibility_error = a.new_label();
 
-    a.cmp(x86::dword_ptr(exp, offsetof(Export, scope_restricted)), imm(0));
+    /* The gate, in full: one word from the export, compared against
+     * THE_NON_VALUE for an unrestricted export and then against this
+     * module's own scope. Both are the common cases and both fall through
+     * without leaving generated code.
+     *
+     * The caller's side is baked in because a module's scope is constant for
+     * all of its code and changes only when the module is reloaded, which
+     * regenerates that code. The callee's side is read from the export, which
+     * the loader writes when the target module is loaded or reloaded, so load
+     * order does not matter and nothing needs invalidating. */
+    a.mov(ARG4, x86::qword_ptr(exp, offsetof(Export, required_scope)));
+    a.cmp(ARG4, imm(THE_NON_VALUE));
     a.je(allowed);
 
+    if (mod_scope != THE_NON_VALUE) {
+        a.cmp(ARG4, imm(mod_scope));
+        a.je(allowed);
+    }
+
+    /* A module with no scope of its own cannot match any restricted export,
+     * so for every module that does not use the feature the gate is this one
+     * load and compare. */
+
+    /* Restricted, and this module is not in its scope. Either a genuine
+     * cross-scope call, or error_handler re-issuing a call that bounced
+     * through it after autoloading the target. The runtime tells them
+     * apart. */
     a.mov(TMP_MEM1q, exp);
     a.mov(TMP_MEM2q, caller_pc);
 
@@ -149,9 +173,10 @@ void BeamModuleAssembler::emit_check_scope_visibility(const x86::Gp &exp,
 
     a.mov(ARG1, c_p);
     a.mov(ARG2, TMP_MEM1q);
-    a.mov(ARG3, TMP_MEM2q);
-    runtime_call<int (*)(Process *, const Export *, ErtsCodePtr),
-                 erts_check_scope_visibility>();
+    mov_imm(ARG3, mod_scope);
+    mov_imm(ARG4, mod);
+    runtime_call<int (*)(Process *, const Export *, Eterm, Eterm),
+                 erts_scope_visibility_slow>();
 
     emit_leave_runtime();
 

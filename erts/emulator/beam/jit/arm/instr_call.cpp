@@ -152,14 +152,16 @@ void BeamModuleAssembler::emit_scope_visibility_gate(bool is_tail) {
      * call_error_handler can recover the caller's scope if this external
      * call lands in a stub Export and bounces through error_handler.
      * This is required to cover direct calls to never-loaded same-scope
-     * restricted functions (ep->scope_restricted reads 0 before the target
+     * restricted functions (ep->required_scope reads THE_NON_VALUE before the target
      * module loads, so the cbz below would otherwise skip the gate). */
     a.bind(gate_pc);
     a.adr(TMP1, gate_pc);
     a.str(TMP1, a64::Mem(c_p, offsetof(Process, caller_saved_i)));
 
-    a.ldr(TMP1.w(), a64::Mem(ARG1, offsetof(Export, scope_restricted)));
-    a.cbz(TMP1, skip_check);
+    a.ldr(TMP1, a64::Mem(ARG1, offsetof(Export, required_scope)));
+    mov_imm(TMP2, THE_NON_VALUE);
+    a.cmp(TMP1, TMP2);
+    a.b_eq(skip_check);
 
     /* The JIT helper does a fresh lookup using the baked-in caller module
      * atom, so the c_p->caller_scope cache is *not* used as primary input

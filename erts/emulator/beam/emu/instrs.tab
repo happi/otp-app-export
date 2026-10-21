@@ -192,9 +192,9 @@ i_call_ext(Dest) {
     //| -no_next
     Export *ep = (Export*)($Dest);
 
-    /* For scope_restricted calls, set caller_scope for visibility check (EEP 80) */
+    /* For scope-restricted calls, set caller_scope for the check (EEP 80) */
     /* Note: caller_scope is cleared in erts_check_scope_visibility after use */
-    if (ep->scope_restricted) {
+    if (ep->required_scope != THE_NON_VALUE) {
         c_p->caller_scope = THE_NON_VALUE;  /* Will be set by visibility check from caller_pc if needed */
         /* Save I for tail call case where CP doesn't point to actual caller (EEP 80) */
         c_p->caller_saved_i = I;
@@ -217,9 +217,9 @@ i_call_ext_only(Dest) {
     //| -no_next
     Export *ep = (Export*)($Dest);
 
-    /* For scope_restricted calls, set caller_scope for visibility check (EEP 80) */
+    /* For scope-restricted calls, set caller_scope for the check (EEP 80) */
     /* Note: caller_scope is cleared in erts_check_scope_visibility after use */
-    if (ep->scope_restricted) {
+    if (ep->required_scope != THE_NON_VALUE) {
         c_p->caller_scope = THE_NON_VALUE;  /* Will be set by visibility check from caller_pc if needed */
     }
 
@@ -238,9 +238,9 @@ i_call_ext_last(Dest, Deallocate) {
     //| -no_next
     Export *ep = (Export*)($Dest);
 
-    /* For scope_restricted calls, set caller_scope for visibility check (EEP 80) */
+    /* For scope-restricted calls, set caller_scope for the check (EEP 80) */
     /* Note: caller_scope is cleared in erts_check_scope_visibility after use */
-    if (ep->scope_restricted) {
+    if (ep->required_scope != THE_NON_VALUE) {
         c_p->caller_scope = THE_NON_VALUE;  /* Will be set by visibility check from caller_pc if needed */
     }
 

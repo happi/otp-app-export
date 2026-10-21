@@ -99,9 +99,8 @@ static void export_init(Export *dst, const Export *template)
         beam_save_calls_export;
 #endif
 
-    /* Initialize scope visibility fields (EEP 80) */
-    dst->scope_atom = am_undefined;
-    dst->scope_restricted = 0;
+    /* Unrestricted until a loader says otherwise (EEP 80) */
+    dst->required_scope = THE_NON_VALUE;
 }
 
 static void export_stage(Export *export,

@@ -300,6 +300,11 @@ beamfile_read(const byte *data, size_t size, BeamFile *beam);
  * it. */
 void beamfile_free(BeamFile *beam);
 
+/* A module's own visibility scope from its attributes chunk, or
+ * THE_NON_VALUE when it declares none (EEP 80). Implemented in beam_load.c;
+ * the JIT uses it while generating the module's code. */
+Eterm erts_beamfile_scope_atom(const BeamFile *beam);
+
 /** @brief Copies a term into the dynamic literal table
  *
  * @param[in] deduplicate Whether to try to deduplicate the term before

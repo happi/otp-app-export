@@ -239,6 +239,77 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
     return retval;
 }
 
+/* A module's own visibility scope, read straight from the attributes chunk
+ * (EEP 80).
+ *
+ * The JIT needs this while it is generating the module's code, which happens
+ * before erts_finish_loading runs, so this is deliberately independent of the
+ * loader state. A module's scope is its own metadata: it is knowable whatever
+ * order modules are loaded in, and it can only change when the module is
+ * reloaded, which generates its code again.
+ *
+ * Returns THE_NON_VALUE when the module declares no scope. */
+Eterm erts_beamfile_scope_atom(const BeamFile *beam) {
+    ErtsHeapFactory factory;
+    const byte *attr_data;
+    Eterm attributes, list;
+    Eterm *hp_start;
+    Sint decoded_size;
+    Eterm scope = THE_NON_VALUE;
+
+    if (beam->attributes.size == 0) {
+        return THE_NON_VALUE;
+    }
+
+    attr_data = beam->attributes.data;
+    decoded_size = erts_decode_ext_size(attr_data, beam->attributes.size);
+    if (decoded_size < 0) {
+        return THE_NON_VALUE;
+    }
+
+    hp_start = erts_alloc(ERTS_ALC_T_TMP, decoded_size * sizeof(Eterm));
+    erts_factory_tmp_init(&factory, hp_start, decoded_size, ERTS_ALC_T_TMP);
+    attributes = erts_decode_ext(&factory, &attr_data, 0);
+    erts_factory_close(&factory);
+
+    if (is_non_value(attributes) || !is_list(attributes)) {
+        erts_free(ERTS_ALC_T_TMP, hp_start);
+        return THE_NON_VALUE;
+    }
+
+    list = attributes;
+    while (is_list(list)) {
+        Eterm *cons = list_val(list);
+        Eterm item = CAR(cons);
+
+        if (is_tuple(item)) {
+            Eterm *tp = tuple_val(item);
+
+            if (arityval(tp[0]) == 2 && is_atom(tp[1]) && is_list(tp[2])) {
+                Atom *atom_ptr = atom_tab(atom_val(tp[1]));
+                const byte *atom_name = erts_atom_get_name(atom_ptr);
+
+                if (atom_ptr->len == 5 &&
+                    sys_memcmp((char*)atom_name, "scope", 5) == 0) {
+                    Eterm *scope_list = list_val(tp[2]);
+
+                    if (is_atom(CAR(scope_list))) {
+                        /* Atoms are immediates, so this survives the heap
+                         * being freed below. */
+                        scope = CAR(scope_list);
+                    }
+                }
+            }
+        }
+
+        list = CDR(cons);
+    }
+
+    erts_free(ERTS_ALC_T_TMP, hp_start);
+
+    return scope;
+}
+
 /* Parse -scope() and -scope_export() attributes (EEP 80) */
 static void parse_scope_attributes(LoaderState* stp, Module* mod_tab_p)
 {
@@ -341,8 +412,7 @@ static void parse_scope_attributes(LoaderState* stp, Module* mod_tab_p)
 
                     if (ep != NULL) {
                         /* Mark it as restricted */
-                        ep->scope_restricted = 1;
-                        ep->scope_atom = scope_atom;
+                        ep->required_scope = scope_atom;
                     }
                 }
             }

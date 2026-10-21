@@ -221,8 +221,16 @@ struct BeamModuleAssemblerCommon {
      * and veneers may follow. */
     Label code_end;
 
+    /* This module's own visibility scope, or THE_NON_VALUE when it declares
+     * none (EEP 80). Constant for every call site in the module, so the gate
+     * bakes it in as an immediate instead of looking the caller up at run
+     * time. */
+    Eterm mod_scope;
+
     BeamModuleAssemblerCommon(const BeamFile *beam_, Eterm mod_)
-            : beam(beam_), mod(mod_) {
+            : beam(beam_), mod(mod_),
+              mod_scope(beam_ ? erts_beamfile_scope_atom(beam_)
+                              : THE_NON_VALUE) {
     }
 
     /* Helpers */

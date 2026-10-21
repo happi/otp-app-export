@@ -5852,7 +5852,7 @@ exported_from_module(Process* p, ErtsCodeIndex code_ix, Eterm mod)
             }
 
             /* Skip scope-restricted exports - they only appear in scope_exports (EEP 80) */
-            if (ep->scope_restricted) {
+            if (ep->required_scope != THE_NON_VALUE) {
                 continue;
             }
 
@@ -5888,7 +5888,8 @@ scope_exported_from_module(Process* p, ErtsCodeIndex code_ix, Eterm mod)
     for (i = 0; i < num_exps; i++) {
         Export* ep = export_list(i,code_ix);
 
-        if (ep->info.mfa.module == mod && ep->scope_restricted) {
+        if (ep->info.mfa.module == mod &&
+            ep->required_scope != THE_NON_VALUE) {
             Eterm tuple;
 
             if (erts_is_export_trampoline_active(ep, code_ix) &&

@@ -278,6 +278,10 @@ void check_monitor_long_schedule(Process *c_p, Uint64 start_time,
                                  ErtsCodePtr start_time_i);
 int erts_check_scope_visibility(Process *c_p, const Export *ep, ErtsCodePtr caller_pc);
 int erts_check_scope_visibility_jit(Process *c_p, const Export *ep, Eterm caller_module_atom);
+int erts_scope_visibility_slow(Process *c_p,
+                               const Export *ep,
+                               Eterm caller_scope,
+                               Eterm caller_module);
 void erts_preserve_caller_scope_for_error_handler(Process *c_p, ErtsCodePtr saved_i);
 
 extern ErtsCodePtr beam_run_process;
