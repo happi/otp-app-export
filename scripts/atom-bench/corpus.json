@@ -1,0 +1,274 @@
+{
+ "root": "$ERL_TOP",
+ "files": [
+  {
+   "name": "lists",
+   "category": "ordinary",
+   "path": "lib/stdlib/src/lists.erl",
+   "include_dirs": [
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "gen_server",
+   "category": "ordinary",
+   "path": "lib/stdlib/src/gen_server.erl",
+   "include_dirs": [
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "dict",
+   "category": "ordinary",
+   "path": "lib/stdlib/src/dict.erl",
+   "include_dirs": [
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "maps",
+   "category": "ordinary",
+   "path": "lib/stdlib/src/maps.erl",
+   "include_dirs": [
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "string",
+   "category": "ordinary",
+   "path": "lib/stdlib/src/string.erl",
+   "include_dirs": [
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "io_lib_format",
+   "category": "ordinary",
+   "path": "lib/stdlib/src/io_lib_format.erl",
+   "include_dirs": [
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "proc_lib",
+   "category": "ordinary",
+   "path": "lib/stdlib/src/proc_lib.erl",
+   "include_dirs": [
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "supervisor",
+   "category": "ordinary",
+   "path": "lib/stdlib/src/supervisor.erl",
+   "include_dirs": [
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "gen_statem",
+   "category": "ordinary",
+   "path": "lib/stdlib/src/gen_statem.erl",
+   "include_dirs": [
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "inet",
+   "category": "ordinary",
+   "path": "lib/kernel/src/inet.erl",
+   "include_dirs": [
+    "lib/kernel/src",
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "code_server",
+   "category": "ordinary",
+   "path": "lib/kernel/src/code_server.erl",
+   "include_dirs": [
+    "lib/kernel/src",
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "application_controller",
+   "category": "ordinary",
+   "path": "lib/kernel/src/application_controller.erl",
+   "include_dirs": [
+    "lib/kernel/src",
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "erl_lint",
+   "category": "large_handwritten",
+   "path": "lib/stdlib/src/erl_lint.erl",
+   "include_dirs": [
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "erl_scan",
+   "category": "large_handwritten",
+   "path": "lib/stdlib/src/erl_scan.erl",
+   "include_dirs": [
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "beam_ssa_opt",
+   "category": "large_handwritten",
+   "path": "lib/compiler/src/beam_ssa_opt.erl",
+   "include_dirs": [
+    "lib/compiler/src",
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "beam_ssa_type",
+   "category": "large_handwritten",
+   "path": "lib/compiler/src/beam_ssa_type.erl",
+   "include_dirs": [
+    "lib/compiler/src",
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "beam_validator",
+   "category": "large_handwritten",
+   "path": "lib/compiler/src/beam_validator.erl",
+   "include_dirs": [
+    "lib/compiler/src",
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "ssl_handshake",
+   "category": "large_handwritten",
+   "path": "lib/ssl/src/ssl_handshake.erl",
+   "include_dirs": [
+    "lib/ssl/src",
+    "lib/public_key/include",
+    "lib/public_key/asn1",
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "xmerl_scan",
+   "category": "large_handwritten",
+   "path": "lib/xmerl/src/xmerl_scan.erl",
+   "include_dirs": [
+    "lib/xmerl/include",
+    "lib/xmerl/src",
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "erl_parse",
+   "category": "generated",
+   "path": "lib/stdlib/src/erl_parse.erl",
+   "include_dirs": [
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "unicode_util",
+   "category": "generated",
+   "path": "lib/stdlib/src/unicode_util.erl",
+   "include_dirs": [
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "core_parse",
+   "category": "generated",
+   "path": "lib/compiler/src/core_parse.erl",
+   "include_dirs": [
+    "lib/compiler/src",
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "snmpc_mib_gram",
+   "category": "generated",
+   "path": "lib/snmp/src/compile/snmpc_mib_gram.erl",
+   "include_dirs": [
+    "lib/snmp/src/compile",
+    "lib/snmp/include",
+    "lib/snmp/src/misc",
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "xmerl_xpath_parse",
+   "category": "generated",
+   "path": "lib/xmerl/src/xmerl_xpath_parse.erl",
+   "include_dirs": [
+    "lib/xmerl/include",
+    "lib/xmerl/src",
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "diameter_gen_base_rfc6733",
+   "category": "generated",
+   "path": "lib/diameter/src/gen/diameter_gen_base_rfc6733.erl",
+   "include_dirs": [
+    "lib/diameter/include",
+    "lib/diameter/src/base",
+    "lib/diameter/src/gen",
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "diameter_gen_doic_rfc7683",
+   "category": "generated",
+   "path": "lib/diameter/src/gen/diameter_gen_doic_rfc7683.erl",
+   "include_dirs": [
+    "lib/diameter/include",
+    "lib/diameter/src/base",
+    "lib/diameter/src/gen",
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  },
+  {
+   "name": "gl",
+   "category": "generated",
+   "path": "lib/wx/src/gen/gl.erl",
+   "include_dirs": [
+    "lib/wx/src",
+    "lib/wx/include",
+    "lib/wx/src/gen",
+    "lib/stdlib/include",
+    "lib/kernel/include"
+   ]
+  }
+ ]
+}
